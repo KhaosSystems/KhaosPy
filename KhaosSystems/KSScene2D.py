@@ -1,4 +1,4 @@
-from PySide2 import QtWidgets, QtCore
+from PySide2 import QtWidgets, QtCore, QtGui
 import typing
 
 """
@@ -15,7 +15,7 @@ class KSScene2D(QtWidgets.QGraphicsScene):
     def __init__(self, parentItem: QtWidgets.QGraphicsItem) -> None:
         super().__init__(parentItem)
         # Register signals
-        # QtCore.QObject.connect(self, QtCore.SIGNAL("selectionChanged()"), self.selectionChangedSignal)
+        QtCore.QObject.connect(self, QtCore.SIGNAL("selectionChanged()"), self.selectionChangedSignal)
 
     # If false, items won't recieve events and vise-versa.
     def setShouldPropagateEventsToItems(self, shouldPropagateEventsToItems: bool) -> None:
@@ -60,8 +60,9 @@ class KSScene2D(QtWidgets.QGraphicsScene):
         # since camera transformations won't be blocked due to the small default scene size.
         self.setSceneRect(self.itemsBoundingRect().marginsAdded(QtCore.QMarginsF(1024*128, 1024*128, 1024*128, 1024*128)))
 
-    '''# Connected to the selectionChanged() signal, please refer to the QT documentation.
+    # Connected to the selectionChanged() signal, please refer to the QT documentation.
     def selectionChangedSignal(self) -> None:
+        pass
         # Tell the host application to update it's selection to match Inari.
-        items = [item.itemName for item in self.selectedItems() if isinstance(item, InariLocator)]
-        self.commandInterpreter.Host_SetSelection(items)'''
+        # items = [item.itemName for item in self.selectedItems() if isinstance(item, InariLocator)]
+        # self.commandInterpreter.Host_SetSelection(items)

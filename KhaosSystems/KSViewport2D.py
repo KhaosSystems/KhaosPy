@@ -163,3 +163,26 @@ class KSViewport2D(QtWidgets.QGraphicsView):
             self.scale(zoomFactor, zoomFactor)
         else:
             self.scale(1 / zoomFactor, 1 / zoomFactor)
+
+    def drawBackground(self, painter, rect):
+        super().drawBackground(painter, rect)
+
+        return
+        
+        # TODO: Dots.
+
+        painter.save()
+        painter.setRenderHint(QtGui.QPainter.Antialiasing, False)
+        painter.setBrush(self.backgroundBrush())
+
+
+        # print(self.mapToScene(int(rect.left()), int(rect.top())))
+        print(self.matrix().dx())
+        pen = QtGui.QPen(QtGui.QColor(46, 84, 255))
+        pen.setWidth(5)
+        painter.setPen(pen)
+        for x in range(0, 1000, 50):
+            for y in range(0, 1000, 50):
+                painter.drawPoint(int(x + self.matrix().dx()), int(y + self.matrix().dy()))
+
+        painter.restore()
