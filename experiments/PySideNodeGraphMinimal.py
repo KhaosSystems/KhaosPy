@@ -21,6 +21,7 @@ class NodeGraph(QtWidgets.QGraphicsView):
         scene.setSceneRect(0, 0, 2000, 2000)
         self.setScene(scene)
 
+    # region Mouse events
     def mousePressEvent(self, event):
         if (event.button() == QtCore.Qt.LeftButton and event.modifiers() == QtCore.Qt.NoModifier and self.scene().itemAt(self.mapToScene(event.pos()), QtGui.QTransform()) is None):
             self.startRubberband(event.pos())
@@ -44,6 +45,7 @@ class NodeGraph(QtWidgets.QGraphicsView):
         self.currentState = 'DEFAULT'
 
         super().mouseReleaseEvent(event)
+    # endregion
 
     # region Rubberband
     def startRubberband(self, position):
@@ -66,20 +68,22 @@ class NodeGraph(QtWidgets.QGraphicsView):
         self.scene().setSelectionArea(painterPath)
     # endregion
 
+    # region Node related
     def createNode(self):
-        nodeItem = NodeItem()
+        nodeItem = KSNodeItem()
         self.scene().nodes['name'] = nodeItem
         self.scene().addItem(nodeItem)
         nodeItem.setPos(self.mapToScene(self.viewport().rect().center()))
         return nodeItem
+    # endregion
 
 class NodeScene(QtWidgets.QGraphicsScene):
     def __init__(self, parent):
-        super(NodeScene, self).__init__(parent)
+        super().__init__(parent)
         self.setBackgroundBrush(QtGui.QColor(26, 26, 26))
         self.nodes = dict()
 
-class NodeItem(QtWidgets.QGraphicsItem):
+class KSNodeItem(QtWidgets.QGraphicsItem):
     def __init__(self):
         super().__init__()
         self.setZValue(1)
@@ -133,6 +137,15 @@ class NodeItem(QtWidgets.QGraphicsItem):
         margin = (text_width - 200) * 0.5
         textRect = QtCore.QRect(-margin, -text_height, text_width, text_height)
         painter.drawText(textRect, QtCore.Qt.AlignCenter, 'Node Name')
+
+    def remove(self):
+        scene = self.scene()
+        scene.removeItem(self)
+
+    def contextMenuEvent(self, event: QtWidgets.QGraphicsSceneContextMenuEvent) -> None:
+        menu = QtWidgets.QMenu()
+        menu.addAction("Delete", self.remove)
+        menu.exec_(event.screenPos())
 
 app = QtWidgets.QApplication()
 
