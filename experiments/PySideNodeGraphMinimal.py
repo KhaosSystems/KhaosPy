@@ -1,6 +1,3 @@
-import os
-import json
-import re
 from PySide2 import QtGui, QtCore, QtWidgets
 
 class NodeGraph(QtWidgets.QGraphicsView):
@@ -25,12 +22,8 @@ class NodeGraph(QtWidgets.QGraphicsView):
         self.setScene(scene)
 
     def mousePressEvent(self, event):
-        # Rubber band selection
         if (event.button() == QtCore.Qt.LeftButton and event.modifiers() == QtCore.Qt.NoModifier and self.scene().itemAt(self.mapToScene(event.pos()), QtGui.QTransform()) is None):
-            self.currentState = 'SELECTION'
-            self._initRubberband(event.pos())
-            self.setInteractive(False)
-        # Drag Item
+            self.startRubberband(event.pos())
         elif (event.button() == QtCore.Qt.LeftButton and event.modifiers() == QtCore.Qt.NoModifier and self.scene().itemAt(self.mapToScene(event.pos()), QtGui.QTransform()) is not None):
             self.currentState = 'DRAG_ITEM'
             self.setInteractive(True)
@@ -40,38 +33,39 @@ class NodeGraph(QtWidgets.QGraphicsView):
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
-        # RuberBand selection.
-        if (self.currentState == 'SELECTION' or self.currentState == 'ADD_SELECTION' or self.currentState == 'SUBTRACT_SELECTION' or self.currentState == 'TOGGLE_SELECTION'):
-            self.rubberband.setGeometry(QtCore.QRect(self.origin, event.pos()).normalized())
+        if (self.currentState == 'SELECTION'):
+            self.updateRubberband(event.pos())
 
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
-
-        # Selection.
         if self.currentState == 'SELECTION':
-            self.rubberband.setGeometry(QtCore.QRect(self.origin, event.pos()).normalized())
-            painterPath = self._releaseRubberband()
-            self.setInteractive(True)
-            self.scene().setSelectionArea(painterPath)
-
+            self.releaseRubberband()
         self.currentState = 'DEFAULT'
 
         super().mouseReleaseEvent(event)
 
-    def _initRubberband(self, position):
+    # region Rubberband
+    def startRubberband(self, position):
+        self.currentState = 'SELECTION'
         self.rubberBandStart = position
         self.origin = position
         self.rubberband.setGeometry(QtCore.QRect(self.origin, QtCore.QSize()))
         self.rubberband.show()
+        self.setInteractive(False)
 
-    def _releaseRubberband(self):
+    def updateRubberband(self, mousePosition):
+        self.rubberband.setGeometry(QtCore.QRect(self.origin, mousePosition).normalized())
+
+    def releaseRubberband(self):
         painterPath = QtGui.QPainterPath()
         rect = self.mapToScene(self.rubberband.geometry())
         painterPath.addPolygon(rect)
         self.rubberband.hide()
-        return painterPath
-        
+        self.setInteractive(True)
+        self.scene().setSelectionArea(painterPath)
+    # endregion
+
     def createNode(self):
         nodeItem = NodeItem()
         self.scene().nodes['name'] = nodeItem
@@ -146,5 +140,4 @@ nodeGraph = NodeGraph(None)
 nodeGraph.show()
 nodeGraph.createNode()
 
-if app:
-    app.exec_()
+app.exec_()
