@@ -1,6 +1,97 @@
 from PySide2 import QtGui, QtCore, QtWidgets
 
-class NodeGraph(QtWidgets.QGraphicsView):
+STYLE_QMENU = '''
+QMenu {
+    color: rgba(255, 255, 255, 200);
+    background-color: rgba(47, 47, 47, 255);
+    border: 1px solid rgba(0, 0, 0, 30);
+}
+
+QMenu::item {
+    padding: 5px 18px 2px;
+    background-color: transparent;
+}
+QMenu::item:selected {
+    color: rgba(98, 68, 10, 255);
+    background-color: rgba(219, 158, 0, 255);
+}
+QMenu::separator {
+    height: 1px;
+    background: rgba(255, 255, 255, 50);
+    margin: 4px 8px;
+}
+'''
+
+class KSNodeItem(QtWidgets.QGraphicsItem):
+    _contextMenu: QtWidgets.QMenu = None
+
+    def __init__(self):
+        super().__init__()
+        self.setZValue(1)
+
+        self.setAcceptHoverEvents(True)
+        self.setFlag(QtWidgets.QGraphicsItem.ItemIsMovable)
+        self.setFlag(QtWidgets.QGraphicsItem.ItemIsSelectable)
+
+        self._contextMenu = QtWidgets.QMenu()
+        self._contextMenu.setMinimumWidth(200)
+        self._contextMenu.setStyleSheet(STYLE_QMENU)
+        self._contextMenu.addAction("Remove", self.remove)
+
+        self._brush = QtGui.QBrush()
+        self._brush.setStyle(QtCore.Qt.SolidPattern)
+        self._brush.setColor(QtGui.QColor(70, 70, 70, 255))
+
+        self._pen = QtGui.QPen()
+        self._pen.setStyle(QtCore.Qt.SolidLine)
+        self._pen.setWidth(2)
+        self._pen.setColor(QtGui.QColor(50, 50, 50, 255))
+
+        self._penSel = QtGui.QPen()
+        self._penSel.setStyle(QtCore.Qt.SolidLine)
+        self._penSel.setWidth(2)
+        self._penSel.setColor(QtGui.QColor(219, 158, 0, 255))
+
+        self._textPen = QtGui.QPen()
+        self._textPen.setStyle(QtCore.Qt.SolidLine)
+        self._textPen.setColor(QtGui.QColor(230, 230, 230, 255))
+
+        self._nodeTextFont = QtGui.QFont("Arial", 12, QtGui.QFont.Bold)
+
+    @property
+    def pen(self):
+        if self.isSelected():
+            return self._penSel
+        else:
+            return self._pen
+
+    def boundingRect(self):
+        return QtCore.QRectF(0, 0, 200, 25)
+
+    def paint(self, painter, option, widget):
+        # Node base.
+        painter.setBrush(self._brush)
+        painter.setPen(self.pen)
+        painter.drawRoundedRect(0, 0, 200, 25, 10, 10)
+
+        # Node label.
+        painter.setPen(self._textPen)
+        painter.setFont(self._nodeTextFont)
+        metrics = QtGui.QFontMetrics(painter.font())
+        text_width = metrics.boundingRect('Node Name').width() + 14
+        text_height = metrics.boundingRect('Node Name').height() + 14
+        margin = (text_width - 200) * 0.5
+        textRect = QtCore.QRect(-margin, -text_height, text_width, text_height)
+        painter.drawText(textRect, QtCore.Qt.AlignCenter, 'Node Name')
+
+    def remove(self):
+        scene = self.scene()
+        scene.removeItem(self)
+
+    def contextMenuEvent(self, event: QtWidgets.QGraphicsSceneContextMenuEvent) -> None:
+        self._contextMenu.exec_(event.screenPos())
+
+class KSNodeGraph(QtWidgets.QGraphicsView):
     def __init__(self, parent):
         super().__init__(parent)
 
@@ -17,9 +108,11 @@ class NodeGraph(QtWidgets.QGraphicsView):
         self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.rubberband = QtWidgets.QRubberBand(QtWidgets.QRubberBand.Rectangle, self)
 
-        scene = NodeScene(self)
+        scene = KSNodeScene(self)
         scene.setSceneRect(0, 0, 2000, 2000)
         self.setScene(scene)
+
+        self.show()
 
     # region Mouse events
     def mousePressEvent(self, event):
@@ -69,88 +162,40 @@ class NodeGraph(QtWidgets.QGraphicsView):
     # endregion
 
     # region Node related
-    def createNode(self):
-        nodeItem = KSNodeItem()
-        self.scene().nodes['name'] = nodeItem
-        self.scene().addItem(nodeItem)
-        nodeItem.setPos(self.mapToScene(self.viewport().rect().center()))
-        return nodeItem
+    def addNode(self, node: KSNodeItem):
+        self.scene().nodes['name'] = node
+        self.scene().addItem(node)
+        node.setPos(self.mapToScene(self.viewport().rect().center()))
     # endregion
 
-class NodeScene(QtWidgets.QGraphicsScene):
+class KSNodeScene(QtWidgets.QGraphicsScene):
     def __init__(self, parent):
         super().__init__(parent)
         self.setBackgroundBrush(QtGui.QColor(26, 26, 26))
         self.nodes = dict()
 
-class KSNodeItem(QtWidgets.QGraphicsItem):
+class FujinNode(KSNodeItem):
     def __init__(self):
         super().__init__()
-        self.setZValue(1)
+        
+        self._contextMenu.addSeparator()
+        self._contextMenu.addAction("Generate Rig", self.generateRig)
+        self._contextMenu.addAction("Generate Skeleton", self.generateSkeleton)
+        self._contextMenu.addAction("Generate Controls", self.generateControls)
 
-        self.setAcceptHoverEvents(True)
-        self.setFlag(QtWidgets.QGraphicsItem.ItemIsMovable)
-        self.setFlag(QtWidgets.QGraphicsItem.ItemIsSelectable)
+    def generateRig(self):
+        pass
 
-        self._brush = QtGui.QBrush()
-        self._brush.setStyle(QtCore.Qt.SolidPattern)
-        self._brush.setColor(QtGui.QColor(130, 130, 130, 255))
-
-        self._pen = QtGui.QPen()
-        self._pen.setStyle(QtCore.Qt.SolidLine)
-        self._pen.setWidth(2)
-        self._pen.setColor(QtGui.QColor(50, 50, 50, 255))
-
-        self._penSel = QtGui.QPen()
-        self._penSel.setStyle(QtCore.Qt.SolidLine)
-        self._penSel.setWidth(2)
-        self._penSel.setColor(QtGui.QColor(250, 250, 250, 255))
-
-        self._textPen = QtGui.QPen()
-        self._textPen.setStyle(QtCore.Qt.SolidLine)
-        self._textPen.setColor(QtGui.QColor(230, 230, 230, 255))
-
-        self._nodeTextFont = QtGui.QFont("Arial", 12, QtGui.QFont.Bold)
-
-    @property
-    def pen(self):
-        if self.isSelected():
-            return self._penSel
-        else:
-            return self._pen
-
-    def boundingRect(self):
-        return QtCore.QRectF(0, 0, 200, 50)
-
-    def paint(self, painter, option, widget):
-        # Node base.
-        painter.setBrush(self._brush)
-        painter.setPen(self.pen)
-        painter.drawRoundedRect(0, 0, 200, 50, 10, 10)
-
-        # Node label.
-        painter.setPen(self._textPen)
-        painter.setFont(self._nodeTextFont)
-        metrics = QtGui.QFontMetrics(painter.font())
-        text_width = metrics.boundingRect('Node Name').width() + 14
-        text_height = metrics.boundingRect('Node Name').height() + 14
-        margin = (text_width - 200) * 0.5
-        textRect = QtCore.QRect(-margin, -text_height, text_width, text_height)
-        painter.drawText(textRect, QtCore.Qt.AlignCenter, 'Node Name')
-
-    def remove(self):
-        scene = self.scene()
-        scene.removeItem(self)
-
-    def contextMenuEvent(self, event: QtWidgets.QGraphicsSceneContextMenuEvent) -> None:
-        menu = QtWidgets.QMenu()
-        menu.addAction("Delete", self.remove)
-        menu.exec_(event.screenPos())
+    def generateSkeleton(self):
+        pass
+    
+    def generateControls(self):
+        pass
 
 app = QtWidgets.QApplication()
 
-nodeGraph = NodeGraph(None)
-nodeGraph.show()
-nodeGraph.createNode()
+nodeGraph = KSNodeGraph(None)
+nodeGraph.setWindowTitle("Khaos Systems | Fujin")
+nodeGraph.addNode(FujinNode())
 
 app.exec_()
