@@ -92,8 +92,20 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
         self._contextMenu.exec_(event.screenPos())
 
 class KSNodeGraph(QtWidgets.QGraphicsView):
+    _contextMenu: QtWidgets.QMenu = None
+
     def __init__(self, parent):
         super().__init__(parent)
+
+        self.frameSelectedAction = QtWidgets.QAction("Frame Selected", self)
+        self.frameSelectedAction.setShortcut(QtGui.QKeySequence(QtCore.Qt.Key_F))
+        self.frameSelectedAction.triggered.connect(self.frameSelected)
+        self.addAction(self.frameSelectedAction)
+
+        self._contextMenu = QtWidgets.QMenu()
+        self._contextMenu.setMinimumWidth(200)
+        self._contextMenu.setStyleSheet(STYLE_QMENU)
+        self._contextMenu.addAction(self.frameSelectedAction)
 
         self.currentState = 'DEFAULT'
 
@@ -168,8 +180,26 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
         node.setPos(self.mapToScene(self.viewport().rect().center()))
     # endregion
 
+    def frameSelected(self):
+        if len(self.scene().selectedItems()) > 0:
+            selectionBounds = self.scene().selectionItemsBoundingRect()
+        else:
+            selectionBounds = self.scene().itemsBoundingRect()
+        selectionBounds = selectionBounds.marginsAdded(QtCore.QMarginsF(64, 64+50, 64, 64))
+        self.fitInView(selectionBounds, QtCore.Qt.KeepAspectRatio)
+
+    def contextMenuEvent(self, event: QtGui.QContextMenuEvent) -> None:
+        self._contextMenu.exec_(event.globalPos())
+
 class KSNodeScene(QtWidgets.QGraphicsScene):
     def __init__(self, parent):
         super().__init__(parent)
         self.setBackgroundBrush(QtGui.QColor(26, 26, 26))
         self.nodes = dict()
+
+    def selectionItemsBoundingRect(self) -> QtCore.QRectF:
+        # Does not take untransformable items into account.
+        boundingRect = QtCore.QRectF()
+        for item in self.selectedItems():
+            boundingRect |= item.sceneBoundingRect()
+        return boundingRect
