@@ -93,6 +93,7 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
 
 class KSNodeGraph(QtWidgets.QGraphicsView):
     _contextMenu: QtWidgets.QMenu = None
+    _lastMouseMovePosition: QtCore.QPoint = None
 
     def __init__(self, parent):
         super().__init__(parent)
@@ -134,7 +135,6 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
         # Camera panning.
         if (event.button() in (QtCore.Qt.MiddleButton, QtCore.Qt.LeftButton) and event.modifiers() == QtCore.Qt.AltModifier):
             self.currentState = 'DRAG_VIEW'
-            self.prevPos = event.pos()
             self.window().setCursor(QtCore.Qt.SizeAllCursor)
             self.setInteractive(False)
 
@@ -151,14 +151,17 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
+        if self._lastMouseMovePosition == None:
+            self._lastMouseMovePosition = event.pos()
+            
         if self.currentState == 'DRAG_VIEW':
-            delta = self.prevPos - event.pos()
-            self.prevPos = event.pos()
-            self.verticalScrollBar().setValue(self.verticalScrollBar().value() + delta.y())
-            self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() + delta.x())
+            delta = event.pos() - self._lastMouseMovePosition
+            self.setMatrix(self.matrix().translate(delta.x(), delta.y()))
 
         elif (self.currentState == 'SELECTION'):
             self.updateRubberband(event.pos())
+
+        self._lastMouseMovePosition = event.pos()
 
         super().mouseMoveEvent(event)
 
@@ -216,7 +219,10 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
         self.fitInView(selectionBounds, QtCore.Qt.KeepAspectRatio)
 
     def contextMenuEvent(self, event: QtGui.QContextMenuEvent) -> None:
-        self._contextMenu.exec_(event.globalPos())
+        if (self.scene().itemAt(self.mapToScene(event.pos()), QtGui.QTransform()) is None):
+            self._contextMenu.exec_(event.globalPos())
+        else:
+            super().contextMenuEvent(event)
 
 class KSNodeScene(QtWidgets.QGraphicsScene):
     def __init__(self, parent):
