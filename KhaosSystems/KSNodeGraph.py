@@ -116,8 +116,11 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
         self.setRenderHint(QtGui.QPainter.NonCosmeticDefaultPen, True)
         self.setViewportUpdateMode(QtWidgets.QGraphicsView.FullViewportUpdate)
         self.setTransformationAnchor(QtWidgets.QGraphicsView.AnchorUnderMouse)
+        self.setResizeAnchor(QtWidgets.QGraphicsView.AnchorViewCenter)
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self.setFrameShape(QtWidgets.QFrame.NoFrame)
+
         self.rubberband = QtWidgets.QRubberBand(QtWidgets.QRubberBand.Rectangle, self)
 
         scene = KSNodeScene(self)
@@ -210,7 +213,7 @@ class KSNodeScene(QtWidgets.QGraphicsScene):
     def addItem(self, item: QtWidgets.QGraphicsItem) -> None:
         super().addItem(item)
         self.setSceneRect(self.itemsBoundingRect().marginsAdded(QtCore.QMarginsF(1024*128, 1024*128, 1024*128, 1024*128)))
-        
+
     def selectionItemsBoundingRect(self) -> QtCore.QRectF:
         # Does not take untransformable items into account.
         boundingRect = QtCore.QRectF()
