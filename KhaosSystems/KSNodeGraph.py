@@ -131,18 +131,33 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
 
     # region Mouse events
     def mousePressEvent(self, event):
-        if (event.button() == QtCore.Qt.LeftButton and event.modifiers() == QtCore.Qt.NoModifier and self.scene().itemAt(self.mapToScene(event.pos()), QtGui.QTransform()) is None):
+        # Camera panning.
+        if (event.button() in (QtCore.Qt.MiddleButton, QtCore.Qt.LeftButton) and event.modifiers() == QtCore.Qt.AltModifier):
+            self.currentState = 'DRAG_VIEW'
+            self.prevPos = event.pos()
+            self.window().setCursor(QtCore.Qt.SizeAllCursor)
+            self.setInteractive(False)
+
+        elif (event.button() == QtCore.Qt.LeftButton and event.modifiers() == QtCore.Qt.NoModifier and self.scene().itemAt(self.mapToScene(event.pos()), QtGui.QTransform()) is None):
             self.startRubberband(event.pos())
+
         elif (event.button() == QtCore.Qt.LeftButton and event.modifiers() == QtCore.Qt.NoModifier and self.scene().itemAt(self.mapToScene(event.pos()), QtGui.QTransform()) is not None):
             self.currentState = 'DRAG_ITEM'
             self.setInteractive(True)
+        
         else:
             self.currentState = 'DEFAULT'
 
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
-        if (self.currentState == 'SELECTION'):
+        if self.currentState == 'DRAG_VIEW':
+            delta = self.prevPos - event.pos()
+            self.prevPos = event.pos()
+            self.verticalScrollBar().setValue(self.verticalScrollBar().value() + delta.y())
+            self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() + delta.x())
+
+        elif (self.currentState == 'SELECTION'):
             self.updateRubberband(event.pos())
 
         super().mouseMoveEvent(event)
@@ -150,19 +165,18 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
     def mouseReleaseEvent(self, event):
         if self.currentState == 'SELECTION':
             self.releaseRubberband()
+
+        self.window().setCursor(QtCore.Qt.ArrowCursor)
         self.currentState = 'DEFAULT'
 
         super().mouseReleaseEvent(event)
     
     def wheelEvent(self, event: QtGui.QWheelEvent) -> None:
         event.accept()
-
-        zoomFactor = 1.05
+        
         self.setTransformationAnchor(QtWidgets.QGraphicsView.AnchorUnderMouse)
-        if event.angleDelta().y() + event.angleDelta().x() > 0:
-            self.scale(zoomFactor, zoomFactor)
-        else:
-            self.scale(1 / zoomFactor, 1 / zoomFactor)
+        scaleFactor = (1.05) if (event.angleDelta().y() + event.angleDelta().x() > 0) else (0.95)
+        self.setMatrix(self.matrix().scale(scaleFactor, scaleFactor))
     # endregion
 
     # region Rubberband
