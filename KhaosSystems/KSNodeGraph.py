@@ -92,16 +92,18 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
     def contextMenuEvent(self, event: QtWidgets.QGraphicsSceneContextMenuEvent) -> None:
         self._contextMenu.exec_(event.screenPos())
 
-class KSMovementState(Enum):
+class KSViewportState(Enum):
     NONE = 1
     PANNING = 2
     ZOOMING = 3
+    SELECTING = 4
+    DRAGGING_ITEM = 5
 
 class KSNodeGraph(QtWidgets.QGraphicsView):
     
     _contextMenu: QtWidgets.QMenu = None
     _lastMouseMovePosition: QtCore.QPoint = None
-    _movementState: KSMovementState = KSMovementState.NONE
+    _viewportState: KSViewportState = KSViewportState.NONE
 
     # Internal variables used for camera transformation calculations.
     _lastMouseMovePosition: QtCore.QPoint = None
@@ -164,43 +166,10 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
             self.currentState = 'DEFAULT'
 
         super().mousePressEvent(event)
-
-    def mouseMoveEvent(self, event):
-        if self._lastMouseMovePosition == None:
-            self._lastMouseMovePosition = event.pos()
-            
-        if self.currentState == 'DRAG_VIEW':
-            delta = event.pos() - self._lastMouseMovePosition
-            self.setMatrix(self.matrix().translate(delta.x(), delta.y()))
-
-        elif (self.currentState == 'SELECTION'):
-            self.updateRubberband(event.pos())
-
-        self._lastMouseMovePosition = event.pos()
-
-        super().mouseMoveEvent(event)
-
-    def mouseReleaseEvent(self, event):
-        if self.currentState == 'SELECTION':
-            self.releaseRubberband()
-
-        self.window().setCursor(QtCore.Qt.ArrowCursor)
-        self.currentState = 'DEFAULT'
-
-        super().mouseReleaseEvent(event)
-    
-    def wheelEvent(self, event: QtGui.QWheelEvent) -> None:
-        event.accept()
-        
-        self.setTransformationAnchor(QtWidgets.QGraphicsView.AnchorUnderMouse)
-        scaleFactor = (1.05) if (event.angleDelta().y() + event.angleDelta().x() > 0) else (0.95)
-        self.setMatrix(self.matrix().scale(scaleFactor, scaleFactor))
-   
-    
     """
     # region Rubberband
     def startRubberband(self, position):
-        self.currentState = 'SELECTION'
+        self._viewportState = KSViewportState.SELECTING
         self.rubberBandStart = position
         self.origin = position
         self.rubberband.setGeometry(QtCore.QRect(self.origin, QtCore.QSize()))
@@ -217,6 +186,7 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
         self.rubberband.hide()
         self.setInteractive(True)
         self.scene().setSelectionArea(painterPath)
+        self._viewportState = KSViewportState.NONE
     # endregion
 
     # region Node related
@@ -234,7 +204,7 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
         self.fitInView(selectionBounds, QtCore.Qt.KeepAspectRatio)
 
     def contextMenuEvent(self, event: QtGui.QContextMenuEvent) -> None:
-        if (self._movementState == KSMovementState.NONE and self.scene().itemAt(self.mapToScene(event.pos()), QtGui.QTransform()) is None):
+        if (self._viewportState == KSViewportState.NONE and self.scene().itemAt(self.mapToScene(event.pos()), QtGui.QTransform()) is None):
             self._contextMenu.exec_(event.globalPos())
         else:
             super().contextMenuEvent(event)
@@ -258,22 +228,33 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
         # Camera panning
         if (QtWidgets.QApplication.queryKeyboardModifiers() & QtCore.Qt.KeyboardModifier.AltModifier and event.button() in (QtCore.Qt.MiddleButton, QtCore.Qt.LeftButton)):
             self.window().setCursor(QtCore.Qt.SizeAllCursor)
-            self._movementState = KSMovementState.PANNING
+            self._viewportState = KSViewportState.PANNING
 
         # Camera mouse zoom
         elif (QtWidgets.QApplication.queryKeyboardModifiers() & QtCore.Qt.KeyboardModifier.AltModifier and event.button() == QtCore.Qt.RightButton):
             self.window().setCursor(QtCore.Qt.SizeVerCursor)
-            self._movementState = KSMovementState.ZOOMING
+            self._viewportState = KSViewportState.ZOOMING
 
+        # Selecting
+        elif (event.button() == QtCore.Qt.LeftButton and event.modifiers() == QtCore.Qt.NoModifier and self.scene().itemAt(self.mapToScene(event.pos()), QtGui.QTransform()) is None):
+            self.startRubberband(event.pos())
+        elif (event.button() == QtCore.Qt.LeftButton and event.modifiers() == QtCore.Qt.NoModifier and self.scene().itemAt(self.mapToScene(event.pos()), QtGui.QTransform()) is not None):
+            self._contextMenu = KSViewportState.DRAGGING_ITEM
+            self.setInteractive(True)
+            
     def mouseReleaseEvent(self, event: QtGui.QMouseEvent) -> None:
         super().mouseReleaseEvent(event)
         
-        if (self._movementState != KSMovementState.NONE):
-            self._movementState = KSMovementState.NONE
+        if self._viewportState == KSViewportState.SELECTING:
+            self.releaseRubberband()
+
+        if (self._viewportState != KSViewportState.NONE):
             self.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.PreventContextMenu)
             self.window().setCursor(QtCore.Qt.ArrowCursor)
         else:
             self.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.DefaultContextMenu)
+
+        self._viewportState = KSViewportState.NONE
 
     def mouseMoveEvent(self, event: QtGui.QMouseEvent) -> None:
         super().mouseMoveEvent(event)
@@ -285,13 +266,13 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
             self._lastRightMousePressPosition = event.pos()
 
         # Camera panning
-        if self._movementState == KSMovementState.PANNING:
+        if self._viewportState == KSViewportState.PANNING:
             delta = event.pos() - self._lastMouseMovePosition
             self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - delta.x())
             self.verticalScrollBar().setValue(self.verticalScrollBar().value() - delta.y())
 
         # Camera mouse zoom.
-        if self._movementState == KSMovementState.ZOOMING:
+        elif self._viewportState == KSViewportState.ZOOMING:
             """ 
             Camera zooming; this is some freaking messy math, don't judge; it works pretty well! xD
             There is most likely a cleaner way of doing this but i honestly can't bother finding it.
@@ -331,6 +312,10 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
             translationDelta = newSceneSpaceOriginPoint - oldSceneSpaceOriginPoint;
             self.translate(translationDelta.x(), translationDelta.y())
        
+        # Selecting
+        elif (self._viewportState == KSViewportState.SELECTING):
+            self.updateRubberband(event.pos())
+
         # Capture necessary data used for camera transformation. 
         self._lastMouseMovePosition = event.pos()
 
@@ -340,6 +325,7 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
         scaleFactor = (1.05) if (event.angleDelta().y() + event.angleDelta().x() > 0) else (0.95)
         self.scale(scaleFactor, scaleFactor)
     # endregion
+    
 class KSNodeScene(QtWidgets.QGraphicsScene):
     def __init__(self, parent):
         super().__init__(parent)
