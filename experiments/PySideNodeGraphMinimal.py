@@ -6,7 +6,6 @@ QMenu {
     background-color: rgba(47, 47, 47, 255);
     border: 1px solid rgba(0, 0, 0, 30);
 }
-
 QMenu::item {
     padding: 5px 18px 2px;
     background-color: transparent;
@@ -24,6 +23,7 @@ QMenu::separator {
 
 class KSNodeItem(QtWidgets.QGraphicsItem):
     _contextMenu: QtWidgets.QMenu = None
+    _title: str = "Node Title"
 
     def __init__(self):
         super().__init__()
@@ -78,11 +78,11 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
         painter.setPen(self._textPen)
         painter.setFont(self._nodeTextFont)
         metrics = QtGui.QFontMetrics(painter.font())
-        text_width = metrics.boundingRect('Node Name').width() + 14
-        text_height = metrics.boundingRect('Node Name').height() + 14
+        text_width = metrics.boundingRect(self._title).width() + 14
+        text_height = metrics.boundingRect(self._title).height() + 14
         margin = (text_width - 200) * 0.5
         textRect = QtCore.QRect(-margin, -text_height, text_width, text_height)
-        painter.drawText(textRect, QtCore.Qt.AlignCenter, 'Node Name')
+        painter.drawText(textRect, QtCore.Qt.AlignCenter, self._title)
 
     def remove(self):
         scene = self.scene()
@@ -184,7 +184,8 @@ class FujinNode(KSNodeItem):
         self._contextMenu.addAction("Generate Controls", self.generateControls)
 
     def generateRig(self):
-        pass
+        self.generateSkeleton()
+        self.generateControls()
 
     def generateSkeleton(self):
         pass
@@ -192,10 +193,23 @@ class FujinNode(KSNodeItem):
     def generateControls(self):
         pass
 
+class FujinHumanoidLegNode(FujinNode):
+    def __init__(self):
+        super().__init__()
+
+        self._title = "Humanoid Leg"
+
+    def generateSkeleton(self):
+        print("Addding joints...")
+    
+    def generateControls(self):
+        print("Addding controls...")
+
+
 app = QtWidgets.QApplication()
 
 nodeGraph = KSNodeGraph(None)
 nodeGraph.setWindowTitle("Khaos Systems | Fujin")
-nodeGraph.addNode(FujinNode())
+nodeGraph.addNode(FujinHumanoidLegNode())
 
 app.exec_()
