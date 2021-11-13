@@ -150,6 +150,16 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
         self.currentState = 'DEFAULT'
 
         super().mouseReleaseEvent(event)
+    
+    def wheelEvent(self, event: QtGui.QWheelEvent) -> None:
+        event.accept()
+
+        zoomFactor = 1.05
+        self.setTransformationAnchor(QtWidgets.QGraphicsView.AnchorUnderMouse)
+        if event.angleDelta().y() + event.angleDelta().x() > 0:
+            self.scale(zoomFactor, zoomFactor)
+        else:
+            self.scale(1 / zoomFactor, 1 / zoomFactor)
     # endregion
 
     # region Rubberband
@@ -197,6 +207,10 @@ class KSNodeScene(QtWidgets.QGraphicsScene):
         self.setBackgroundBrush(QtGui.QColor(26, 26, 26))
         self.nodes = dict()
 
+    def addItem(self, item: QtWidgets.QGraphicsItem) -> None:
+        super().addItem(item)
+        self.setSceneRect(self.itemsBoundingRect().marginsAdded(QtCore.QMarginsF(1024*128, 1024*128, 1024*128, 1024*128)))
+        
     def selectionItemsBoundingRect(self) -> QtCore.QRectF:
         # Does not take untransformable items into account.
         boundingRect = QtCore.QRectF()
