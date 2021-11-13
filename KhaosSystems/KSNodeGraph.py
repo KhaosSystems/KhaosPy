@@ -147,26 +147,6 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
 
         self.show()
 
-    """
-    def mousePressEvent(self, event):
-        # Camera panning.
-        if (event.button() in (QtCore.Qt.MiddleButton, QtCore.Qt.LeftButton) and event.modifiers() == QtCore.Qt.AltModifier):
-            self.currentState = 'DRAG_VIEW'
-            self.window().setCursor(QtCore.Qt.SizeAllCursor)
-            self.setInteractive(False)
-
-        elif (event.button() == QtCore.Qt.LeftButton and event.modifiers() == QtCore.Qt.NoModifier and self.scene().itemAt(self.mapToScene(event.pos()), QtGui.QTransform()) is None):
-            self.startRubberband(event.pos())
-
-        elif (event.button() == QtCore.Qt.LeftButton and event.modifiers() == QtCore.Qt.NoModifier and self.scene().itemAt(self.mapToScene(event.pos()), QtGui.QTransform()) is not None):
-            self.currentState = 'DRAG_ITEM'
-            self.setInteractive(True)
-        
-        else:
-            self.currentState = 'DEFAULT'
-
-        super().mousePressEvent(event)
-    """
     # region Rubberband
     def startRubberband(self, position):
         self._viewportState = KSViewportState.SELECTING
