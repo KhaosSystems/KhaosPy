@@ -36,6 +36,7 @@ class KSCommandInterpreter(object):
         print(f" - child: {child.name}")
 
 class KSMayaCommandInterpreter(KSCommandInterpreter):
+    _debug: bool = True
     mayaCmds = None
 
     def __init__(self) -> None:
@@ -50,7 +51,11 @@ class KSMayaCommandInterpreter(KSCommandInterpreter):
             self.mayaCmds.delete(name)
 
     def CreateJoint(self, name: str, parent: KSEntityHandle = None, position: KSVector = None) -> KSMayaEntityHandle:
-        jnt = self.mayaCmds.createNode("joint", name=name)
+        if (self.Exists(name)):
+            print(f"Error: object '{name}' already exists.")
+            return
+        
+        jnt = self.mayaCmds.createNode("joint", name=name, skipSelect=True)
         jntHandle = KSMayaEntityHandle(jnt)
 
         if (parent != None):
@@ -62,6 +67,9 @@ class KSMayaCommandInterpreter(KSCommandInterpreter):
         return jntHandle
 
     def Parent(self, parent: KSEntityHandle, child: KSEntityHandle) -> None:
+        if (self._debug):
+            super().Parent(parent, child)
+
         if (not self.Exists(parent.name)):
             print("Error: parent object did not exist.")
             return
@@ -71,3 +79,4 @@ class KSMayaCommandInterpreter(KSCommandInterpreter):
             return
 
         self.mayaCmds.parent(child.name, parent.name)
+        self.mayaCmds.select(clear=True)
