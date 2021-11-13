@@ -1,4 +1,5 @@
 from PySide2 import QtCore, QtWidgets, QtGui
+from enum import Enum
 
 STYLE_QMENU = '''
 QMenu {
@@ -91,9 +92,22 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
     def contextMenuEvent(self, event: QtWidgets.QGraphicsSceneContextMenuEvent) -> None:
         self._contextMenu.exec_(event.screenPos())
 
+class KSMovementState(Enum):
+    NONE = 1
+    PANNING = 2
+    ZOOMING = 3
+
 class KSNodeGraph(QtWidgets.QGraphicsView):
+    
     _contextMenu: QtWidgets.QMenu = None
     _lastMouseMovePosition: QtCore.QPoint = None
+    _movementState: KSMovementState = KSMovementState.NONE
+
+    # Internal variables used for camera transformation calculations.
+    _lastMouseMovePosition: QtCore.QPoint = None
+    _lastRightMousePressPosition:QtCore.QPoint = None
+    _lastRightMousePressVerticalScalingFactor:float = None
+    _lastRightMousePressHorizontalScalingFactor:float = None
 
     def __init__(self, parent):
         super().__init__(parent)
@@ -115,12 +129,13 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
         self.setRenderHint(QtGui.QPainter.HighQualityAntialiasing)
         self.setRenderHint(QtGui.QPainter.SmoothPixmapTransform)
         self.setRenderHint(QtGui.QPainter.NonCosmeticDefaultPen, True)
-        self.setViewportUpdateMode(QtWidgets.QGraphicsView.FullViewportUpdate)
+
         self.setTransformationAnchor(QtWidgets.QGraphicsView.AnchorUnderMouse)
         self.setResizeAnchor(QtWidgets.QGraphicsView.AnchorViewCenter)
-        self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.setDragMode(QtWidgets.QGraphicsView.DragMode.NoDrag)
 
         self.rubberband = QtWidgets.QRubberBand(QtWidgets.QRubberBand.Rectangle, self)
 
@@ -130,7 +145,7 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
 
         self.show()
 
-    # region Mouse events
+    """# region Mouse events
     def mousePressEvent(self, event):
         # Camera panning.
         if (event.button() in (QtCore.Qt.MiddleButton, QtCore.Qt.LeftButton) and event.modifiers() == QtCore.Qt.AltModifier):
@@ -181,7 +196,8 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
         scaleFactor = (1.05) if (event.angleDelta().y() + event.angleDelta().x() > 0) else (0.95)
         self.setMatrix(self.matrix().scale(scaleFactor, scaleFactor))
     # endregion
-
+    
+    """
     # region Rubberband
     def startRubberband(self, position):
         self.currentState = 'SELECTION'
@@ -207,7 +223,6 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
     def addNode(self, node: KSNodeItem):
         self.scene().nodes['name'] = node
         self.scene().addItem(node)
-        node.setPos(self.mapToScene(self.viewport().rect().center()))
     # endregion
 
     def frameSelected(self):
@@ -219,10 +234,139 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
         self.fitInView(selectionBounds, QtCore.Qt.KeepAspectRatio)
 
     def contextMenuEvent(self, event: QtGui.QContextMenuEvent) -> None:
-        if (self.scene().itemAt(self.mapToScene(event.pos()), QtGui.QTransform()) is None):
+        if (self._movementState == KSMovementState.NONE and self.scene().itemAt(self.mapToScene(event.pos()), QtGui.QTransform()) is None):
             self._contextMenu.exec_(event.globalPos())
         else:
             super().contextMenuEvent(event)
+
+
+     # Overwritten key press event handler, please refer to the QT documentation.
+    def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
+        super().keyPressEvent(event)
+
+        # Frame selected.
+        if event.key() == QtCore.Qt.Key_F:
+            self.frameSelected()
+
+        # Camera panning.
+        if bool(QtWidgets.QApplication.queryKeyboardModifiers() & QtCore.Qt.KeyboardModifier.AltModifier):
+            # Disable box selection and don't propagate events to items until released.
+            self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
+
+    # Overwritten key release event handler, please refer to the QT documentation.
+    def keyReleaseEvent(self, event: QtGui.QKeyEvent) -> None:
+        super().keyReleaseEvent(event)
+
+        # Camera panning.
+        if not bool(QtWidgets.QApplication.queryKeyboardModifiers() & QtCore.Qt.KeyboardModifier.AltModifier):
+            # Re-enable Re-enable disabled box selection and enable item event propagate again.
+            self.setDragMode(QtWidgets.QGraphicsView.DragMode.RubberBandDrag)
+
+    # Overwritten mouse pressed event handler, please refer to the QT documentation.
+    def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
+        super().mousePressEvent(event)
+
+        if event.button() == QtCore.Qt.RightButton:
+            self._lastRightMousePressPosition = event.pos()
+            self._lastRightMousePressHorizontalScalingFactor = self.matrix().m11()
+            self._lastRightMousePressVerticalScalingFactor = self.matrix().m22()
+
+        # Set cursor corresponding to the active transformation state.
+        if bool(QtWidgets.QApplication.queryKeyboardModifiers() & QtCore.Qt.KeyboardModifier.AltModifier):
+            if bool((event.buttons() & QtCore.Qt.MiddleButton) or (event.buttons() & QtCore.Qt.LeftButton)):
+                # Panning.
+                self.window().setCursor(QtCore.Qt.SizeAllCursor)
+                self._movementState = KSMovementState.PANNING
+            elif bool(event.buttons() & QtCore.Qt.RightButton):
+                # Zooming.
+                self.window().setCursor(QtCore.Qt.SizeVerCursor)
+                self._movementState = KSMovementState.ZOOMING
+
+    def mouseReleaseEvent(self, event: QtGui.QMouseEvent) -> None:
+        super().mouseReleaseEvent(event)
+        
+        if (self._movementState != KSMovementState.NONE):
+            self._movementState = KSMovementState.NONE
+            self.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.PreventContextMenu)
+            self.window().setCursor(QtCore.Qt.ArrowCursor)
+        else:
+            self.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.DefaultContextMenu)
+
+    # Overwritten mouse move event handler, please refer to the QT documentation.
+    def mouseMoveEvent(self, event: QtGui.QMouseEvent) -> None:
+        super().mouseMoveEvent(event)
+
+        # If these positions are not set/set to null vector, the later code will cause wired behaviour.
+        if self._lastMouseMovePosition == None:
+            self._lastMouseMovePosition = event.pos()
+        if self._lastRightMousePressPosition == None:
+            self._lastRightMousePressPosition = event.pos()
+
+        # Camera transformation logic.
+        if bool(QtWidgets.QApplication.queryKeyboardModifiers() & QtCore.Qt.KeyboardModifier.AltModifier):
+            if bool((event.buttons() & QtCore.Qt.MiddleButton) or (event.buttons() & QtCore.Qt.LeftButton)):
+                # Camera panning.
+                verticalScrollBar = self.verticalScrollBar()
+                horizontalScrollBar = self.horizontalScrollBar()
+                delta = event.pos() - self._lastMouseMovePosition
+                verticalScrollBar.setValue(verticalScrollBar.value() - delta.y())
+                horizontalScrollBar.setValue(horizontalScrollBar.value() - delta.x())
+            elif bool(event.buttons() & QtCore.Qt.RightButton):
+                """ 
+                Camera zooming; this is some freaking messy math, don't judge; it works pretty well! xD
+                There is most likely a cleaner way of doing this but i honestly can't bother finding it.
+                If this is triggering to you, feel free to hit me with a pull request.
+                """
+                self.setTransformationAnchor(QtWidgets.QGraphicsView.NoAnchor)
+                # TODO: Make zooming slower when distanceToOrigin increases
+                # Capture data for correcting view translation offset.
+                oldSceneSpaceOriginPoint = self.mapToScene(self._lastRightMousePressPosition)
+                ### Calculate scaleing factor
+                cursorPoint = QtGui.QVector2D(event.pos())
+                originPoint = QtGui.QVector2D(self._lastRightMousePressPosition)
+                orientationPoint = originPoint + QtGui.QVector2D(1, 1)
+                orientationVector = orientationPoint - originPoint
+                cursorVector = orientationPoint - cursorPoint
+                # Introduce a small constant value if the vector length is 0.
+                # This is needed since the vector normalization calulation will cause an error if the vector has a length of 0
+                orientationVector = (orientationVector + QtGui.QVector2D(0.001, 0.001)) if bool(orientationVector.length() == 0) else orientationVector
+                cursorVector = (cursorVector + QtGui.QVector2D(0.001, 0.001)) if bool(cursorVector.length() == 0) else cursorVector
+                orientationUnitVector = orientationVector.normalized() # Normalization calulation
+                cursorUnitVector = cursorVector.normalized() # Normalization calulation
+                dotProduct = QtGui.QVector2D.dotProduct(orientationUnitVector, cursorUnitVector)
+                distanceToOrigin = originPoint.distanceToPoint(cursorPoint)
+                globalScaleFactor = 1 - (dotProduct * distanceToOrigin * 0.0015) # dot * dist * zoomSensitivity
+                ### Create the actial matrix for applying the scale; the initial scaleing factors should be set on mouse putton pressed.
+                finalHorizontalScalingFactor = min(max(self._lastRightMousePressHorizontalScalingFactor * globalScaleFactor, 0.2), 2)
+                finalVerticalScalingFactor = min(max(self._lastRightMousePressVerticalScalingFactor * globalScaleFactor, 0.2), 2)
+                # print(finalHorizontalScalingFactor)
+                # print(finalVerticalScalingFactor) 
+                horizontalScalingFactor = finalHorizontalScalingFactor # FIXME: This should possibly not by multiplying since it wont be linear; i think...
+                verticalScalingFactor = finalVerticalScalingFactor # FIXME: If addition or subtraction is the correct way to go, the globalScaleFactor range need to change.
+                verticalShearingFactor = self.matrix().m12()
+                horizontalShearingFactor = self.matrix().m21()
+                self.setMatrix(QtGui.QMatrix(horizontalScalingFactor, verticalShearingFactor, horizontalShearingFactor, verticalScalingFactor, self.matrix().dx(), self.matrix().dy()))
+                # Correct view translation offset.
+                newSceneSpaceOriginPoint = self.mapToScene(self._lastRightMousePressPosition)
+                translationDelta = newSceneSpaceOriginPoint - oldSceneSpaceOriginPoint;
+                self.translate(translationDelta.x(), translationDelta.y())
+       
+        # Capture necessary data used for camera transformation. 
+        self._lastMouseMovePosition = event.pos()
+
+    # Overwritten wheel event handler, please refer to the QT documentation.
+    def wheelEvent(self, event: QtGui.QWheelEvent) -> None:
+        # Accepting the event stops it from propagating, canceling the default scroll behaviour.
+        event.accept()
+
+        # Mouse wheel zooming
+        zoomFactor = 1.05
+        self.setTransformationAnchor(QtWidgets.QGraphicsView.AnchorUnderMouse)
+        # Add angleDelta() x and y to get propper mouse wheel delta.
+        if event.angleDelta().y() + event.angleDelta().x() > 0:
+            self.scale(zoomFactor, zoomFactor)
+        else:
+            self.scale(1 / zoomFactor, 1 / zoomFactor)
 
 class KSNodeScene(QtWidgets.QGraphicsScene):
     def __init__(self, parent):
