@@ -84,15 +84,15 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
 
     def paint(self, painter, option, widget):
         # Debug
-        painter.fillRect(self.boundingRect(), QtCore.Qt.yellow)
+        """painter.fillRect(self.boundingRect(), QtCore.Qt.yellow)
         painter.fillRect(self.bodyBoundingRect(), QtCore.Qt.green)
-        painter.fillRect(self.headerBoundingRect(), QtCore.Qt.blue)
+        painter.fillRect(self.headerBoundingRect(), QtCore.Qt.blue)"""
 
-        """# Node base.
+        # Node base.
         painter.setBrush(self._brush)
         painter.setPen(self.pen)
         margin = QtCore.QMarginsF(self.pen.width() / 2, self.pen.width() / 2, self.pen.width() / 2, self.pen.width() / 2)
-        painter.drawRoundedRect(self.bodyBoundingRect().marginsRemoved(margin), 10, 10)"""
+        painter.drawRoundedRect(self.bodyBoundingRect().marginsRemoved(margin), 10, 10)
 
         # Node label.
         painter.setPen(self._textPen)

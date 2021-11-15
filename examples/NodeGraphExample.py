@@ -10,9 +10,13 @@ class KSNodeInput(QtWidgets.QGraphicsItem):
     _datatype = None
     _data = None
     _size: QtCore.QSizeF = QtCore.QSizeF(200, 20)
-
+    _manualInput: QtWidgets.QGraphicsTextItem = None
+    
     def __init__(self, parent: QtWidgets.QGraphicsItem, datatype):
         super().__init__(parent=parent)
+
+        self._manualInput = QtWidgets.QGraphicsTextItem("L_Joint_jnt", self)
+        self._manualInput.setTextInteractionFlags(QtCore.Qt.TextEditable)
 
         self._datatype = datatype
 
@@ -26,10 +30,14 @@ class KSNodeInput(QtWidgets.QGraphicsItem):
         painter.fillRect(self.boundingRect(), QtCore.Qt.red)
 
     def value(self):
-        if (self._data != None):
+        if (self._datatype == str):
+            return self._manualInput.toPlainText()
+        else:
+            return self._datatype()
+        """if (self._data != None):
             return self._datatype()
         else:
-            return self._datatype() 
+            return self._datatype() """
 
 class ExampleNode(KSNodeItem):
     _inputs: typing.Dict[str, KSNodeInput] = {}
