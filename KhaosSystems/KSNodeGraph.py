@@ -26,6 +26,9 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
     _contextMenu: QtWidgets.QMenu = None
     _title: str = "Node Title"
 
+    _headerSize: QtCore.QRectF = None
+    _bodySize: QtCore.QSizeF = None
+
     def __init__(self):
         super().__init__()
         self.setZValue(1)
@@ -33,6 +36,9 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
         self.setAcceptHoverEvents(True)
         self.setFlag(QtWidgets.QGraphicsItem.ItemIsMovable)
         self.setFlag(QtWidgets.QGraphicsItem.ItemIsSelectable)
+
+        self._headerSize = QtCore.QSizeF(200, 33)
+        self._bodySize = QtCore.QSizeF(200, 20)
 
         self._contextMenu = QtWidgets.QMenu()
         self._contextMenu.setMinimumWidth(200)
@@ -66,24 +72,36 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
         else:
             return self._pen
 
-    def boundingRect(self):
-        return QtCore.QRectF(0, 0, 200, 25)
+    def headerBoundingRect(self) -> QtCore.QRectF:
+        margin = (self._headerSize.width() - self._bodySize.width()) * 0.5
+        return QtCore.QRectF(QtCore.QPointF(-margin, 0), self._headerSize)
+
+    def bodyBoundingRect(self) -> QtCore.QRectF:
+        return QtCore.QRectF(QtCore.QPointF(0, self._headerSize.height()), self._bodySize)
+
+    def boundingRect(self) -> QtCore.QRectF:
+        return QtCore.QRectF(0, 0, self._bodySize.width(), self._bodySize.height() + self._headerSize.height())
 
     def paint(self, painter, option, widget):
-        # Node base.
+        # Debug
+        painter.fillRect(self.boundingRect(), QtCore.Qt.yellow)
+        painter.fillRect(self.bodyBoundingRect(), QtCore.Qt.green)
+        painter.fillRect(self.headerBoundingRect(), QtCore.Qt.blue)
+
+        """# Node base.
         painter.setBrush(self._brush)
         painter.setPen(self.pen)
-        painter.drawRoundedRect(0, 0, 200, 25, 10, 10)
+        margin = QtCore.QMarginsF(self.pen.width() / 2, self.pen.width() / 2, self.pen.width() / 2, self.pen.width() / 2)
+        painter.drawRoundedRect(self.bodyBoundingRect().marginsRemoved(margin), 10, 10)"""
 
         # Node label.
         painter.setPen(self._textPen)
         painter.setFont(self._nodeTextFont)
-        metrics = QtGui.QFontMetrics(painter.font())
+        """metrics = QtGui.QFontMetrics(painter.font())
         text_width = metrics.boundingRect(self._title).width() + 14
         text_height = metrics.boundingRect(self._title).height() + 14
-        margin = (text_width - 200) * 0.5
-        textRect = QtCore.QRect(-margin, -text_height, text_width, text_height)
-        painter.drawText(textRect, QtCore.Qt.AlignCenter, self._title)
+        self._headerSize = QtCore.QSizeF(text_width, text_height)"""
+        painter.drawText(self.headerBoundingRect(), QtCore.Qt.AlignCenter, self._title)
 
     def remove(self):
         scene = self.scene()
@@ -100,7 +118,6 @@ class KSViewportState(Enum):
     DRAGGING_ITEM = 5
 
 class KSNodeGraph(QtWidgets.QGraphicsView):
-    
     _contextMenu: QtWidgets.QMenu = None
     _lastMouseMovePosition: QtCore.QPoint = None
     _viewportState: KSViewportState = KSViewportState.NONE
