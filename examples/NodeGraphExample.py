@@ -45,12 +45,14 @@ class KSNodeInput(QtWidgets.QGraphicsItem):
             return self._connection.value()
 
 class KSNodeOutput(QtWidgets.QGraphicsItem):
+    _node = None
     _datatype = None
     _data = "NOT UPDATED"
 
-    def __init__(self, parent: QtWidgets.QGraphicsItem, datatype):
+    def __init__(self, parent: "KSNodeItemDev", datatype):
         super().__init__(parent=parent)
-
+        
+        self._node = parent
         self._datatype = datatype
 
     def boundingRect(self) -> QtCore.QRectF:
@@ -60,7 +62,40 @@ class KSNodeOutput(QtWidgets.QGraphicsItem):
         painter.fillRect(self.boundingRect(), QtCore.Qt.red)
     
     def value(self):
+        self._node.executeAction()
         return self._data
+
+class KSNodeConnection(QtWidgets.QGraphicsPathItem):
+    origin = None
+    target = None
+    
+    def __init__(self, origin: KSNodeInput, target: KSNodeOutput) -> None:
+        super().__init__()
+
+        self.origin = origin
+        self.target = target
+
+    def paint(self, painter: QtGui.QPainter, option: QtWidgets.QStyleOptionGraphicsItem, widget: typing.Optional[QtWidgets.QWidget] = ...) -> None:
+        self.updatePath()
+        return super().paint(painter, option, widget=widget)
+
+    def updatePath(self):
+        self._pen = QtGui.QPen(QtCore.Qt.red)
+        self._pen.setWidth(8)
+        self.setPen(self._pen)
+
+        self.target_point = self.origin.scenePos()
+        self.source_point = self.target.scenePos()
+
+        path = QtGui.QPainterPath()
+        path.moveTo(self.source_point)
+        dx = (self.target_point.x() - self.source_point.x()) * 0.5
+        dy = self.target_point.y() - self.source_point.y()
+        ctrl1 = QtCore.QPointF(self.source_point.x() + dx, self.source_point.y() + dy * 0)
+        ctrl2 = QtCore.QPointF(self.source_point.x() + dx, self.source_point.y() + dy * 1)
+        path.cubicTo(ctrl1, ctrl2, self.target_point)
+
+        self.setPath(path)
 
 class KSNodeItemDev(KSNodeItem):
     _inputs: typing.Dict[str, KSNodeInput] = {}
@@ -155,12 +190,9 @@ nodeGraph.addNode(nodeA)
 nodeGraph.addNode(nodeB)
 
 nodeB._inputs['string']._connection = nodeA._outputs['return']
-"""parentNode.setPos(100, 100)
-childNode._input = parentNode
-parentNode._output = childNode
-"""
 
-# pathItem = KSNodeConnection(parentNode._output, childNode._input)
-# nodeGraph.scene().addItem(pathItem)
+pathItem = KSNodeConnection(nodeB._inputs['string'], nodeA._outputs['return'])
+nodeGraph.scene().addItem(pathItem)
+pathItem.updatePath()
 
-app.exec_()    
+app.exec_()
