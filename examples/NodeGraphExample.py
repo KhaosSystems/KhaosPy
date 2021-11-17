@@ -31,6 +31,4 @@ nodeB = PrintString()
 nodeGraph.addNode(nodeA)
 nodeGraph.addNode(nodeB)
 
-nodeB._inputs['string'].connect(nodeA._outputs['return'])
-
 app.exec_()

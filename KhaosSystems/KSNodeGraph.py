@@ -79,15 +79,23 @@ class KSNodeInput(QtWidgets.QGraphicsItem):
 
         if (self._datatype == str):
             self._manualInput = KSGraphicsStringInput("L_Joint_jnt", self)
+            self._manualInput.setPos(15, 0)
 
     def connect(self, output: "KSNodeOutput") -> None:
         self._connection = output
+        self._connection.appendConnected(self)
         self._manualInput.hide()
-        
+
         targetPoint = output.scenePos() + output.boundingRect().center()
         originPoint = self.scenePos() + self.boundingRect().center()
         self._connectionPath = KSNodeConnectionPath(targetPoint, originPoint)
         self.scene().addItem(self._connectionPath)
+
+    def updatePath(self) -> None:
+        if (self._connectionPath != None):
+            targetPoint = self._connection.scenePos() + self._connection.boundingRect().center()
+            originPoint = self.scenePos() + self.boundingRect().center()
+            self._connectionPath.updatePath(targetPoint, originPoint)
 
     def data(self) -> typing.Any:
         if (self._connection != None):
@@ -105,6 +113,7 @@ class KSNodeOutput(QtWidgets.QGraphicsItem):
     _dataProvider: "KSNodeItem" = None
     _datatype: type = None
     _dataCache: typing.Any = None
+    _connections: typing.List[KSNodeInput] = []
 
     def __init__(self, parent: "KSNodeItem", datatype: type) -> None:
         super().__init__(parent=parent)
@@ -113,6 +122,13 @@ class KSNodeOutput(QtWidgets.QGraphicsItem):
 
     def setData(self, data: typing.Any) -> None:
         self._dataCache = data
+
+    def appendConnected(self, connection: KSNodeInput) -> None:
+        self._connections.append(connection)
+
+    def updatePaths(self) -> None:
+        for connection in self._connections:
+            connection.updatePath()
 
     def data(self) -> typing.Any:
         self._dataProvider.executeImplicit()
@@ -302,6 +318,15 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
     def contextMenuEvent(self, event: QtWidgets.QGraphicsSceneContextMenuEvent) -> None:
         self._contextMenu.exec_(event.screenPos())
 
+    def mouseMoveEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent) -> None:
+        # FIXME: The path updateing logic should be happening on drag move event, but i don't want to spend time debugging why that ain't working right now..-
+        for inputKey in self._inputs:
+            self._inputs[inputKey].updatePath()
+        for outputKey in self._outputs:
+            self._outputs[outputKey].updatePaths()
+
+        super().mouseMoveEvent(event)
+
 class KSViewportState(Enum):
     NONE = 1
     PANNING = 2
@@ -399,8 +424,12 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
 
         self._connectionPath.updatePath(self._connectionOriginItem.scenePos() + self._connectionOriginItem.boundingRect().center(), self.mapToScene(mousePosition))
 
-    def releaseConnection(self) -> None:
-        print("rel")
+    def releaseConnection(self, destinationItem: typing.Any) -> None:
+        if (destinationItem != None):
+            if (type(self._connectionOriginItem) == KSNodeInput and type(destinationItem) == KSNodeOutput):
+                self._connectionOriginItem.connect(destinationItem)
+            elif (type(self._connectionOriginItem) == KSNodeOutput and type(destinationItem) == KSNodeInput):
+                destinationItem.connect(self._connectionOriginItem)
         self.scene().removeItem(self._connectionPath)
         self._connectionPath = None
         self._connectionOriginItem = None
@@ -409,7 +438,7 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
     # endregion
 
     # region Node related
-    def addNode(self, node: KSNodeItem):
+    def addNode(self, node: KSNodeItem) -> None:
         self.scene().nodes['name'] = node
         self.scene().addItem(node)
     # endregion
@@ -463,7 +492,6 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
             # Create connection
             if (type(item) in (KSNodeInput, KSNodeOutput)):
                 self.startConnection(item)
-                self._viewportState = KSViewportState.CREATING_CONNECTION
             
             # Select connection path
             elif (type(item) == KSNodeConnectionPath):
@@ -480,7 +508,8 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
         super().mouseReleaseEvent(event)
         
         if (self._viewportState == KSViewportState.CREATING_CONNECTION):
-            self.releaseConnection()
+            item = self.itemAt(event.pos())
+            self.releaseConnection(item)
 
         elif self._viewportState == KSViewportState.SELECTING:
             self.releaseRubberband()
