@@ -33,9 +33,43 @@ class KSGraphicsStringInput(QtWidgets.QGraphicsTextItem):
     def data(self) -> typing.Any:
         return self.toPlainText()
 
+class KSNodeConnectionPath(QtWidgets.QGraphicsPathItem):
+    origin = None
+    target = None
+    
+    def __init__(self, origin: "KSNodeInput", target: "KSNodeOutput") -> None:
+        super().__init__(parent=origin)
+
+        self.origin = origin
+        self.target = target
+
+    def paint(self, painter: QtGui.QPainter, option: QtWidgets.QStyleOptionGraphicsItem, widget: typing.Optional[QtWidgets.QWidget] = ...) -> None:
+        self.updatePath()
+        return super().paint(painter, option, widget=widget)
+
+    def updatePath(self):
+        self._pen = QtGui.QPen(QtCore.Qt.red)
+        self._pen.setWidth(4)
+        self.setPen(self._pen)
+
+        self.source_point = self.origin.boundingRect().center()
+        self.target_point = self.target.scenePos() + self.target.boundingRect().center() - self.origin.scenePos()
+
+        path = QtGui.QPainterPath()
+        path.moveTo(self.source_point)
+        dx = (self.target_point.x() - self.source_point.x()) * 0.5
+        dy = self.target_point.y() - self.source_point.y()
+        ctrl1 = QtCore.QPointF(self.source_point.x() + dx, self.source_point.y() + dy * 0)
+        ctrl2 = QtCore.QPointF(self.source_point.x() + dx, self.source_point.y() + dy * 1)
+        path.cubicTo(ctrl1, ctrl2, self.target_point)
+
+        self.setPath(path)
+    
+
 class KSNodeInput(QtWidgets.QGraphicsItem):
     _datatype: type = None
     _connection: "KSNodeOutput" = None
+    _connectionPath: KSNodeConnectionPath = None
     _manualInput: KSGraphicsStringInput = None
 
     def __init__(self, parent: "KSNodeItem", datatype: type) -> None:
@@ -48,6 +82,9 @@ class KSNodeInput(QtWidgets.QGraphicsItem):
     def connect(self, output: "KSNodeOutput") -> None:
         self._connection = output
         self._manualInput.hide()
+        
+        self._connectionPath = KSNodeConnectionPath(self, output)
+        self._connectionPath.updatePath()
 
     def data(self) -> typing.Any:
         if (self._connection != None):
