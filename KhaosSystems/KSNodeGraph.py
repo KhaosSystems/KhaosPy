@@ -82,14 +82,23 @@ class KSNodeInput(QtWidgets.QGraphicsItem):
             self._manualInput.setPos(15, 0)
 
     def connect(self, output: "KSNodeOutput") -> None:
+        if (self._connection != None):
+            self.disconnect()
+
         self._connection = output
-        self._connection.appendConnected(self)
+        self._connection.onConnect(self)
         self._manualInput.hide()
 
         targetPoint = output.scenePos() + output.boundingRect().center()
         originPoint = self.scenePos() + self.boundingRect().center()
         self._connectionPath = KSNodeConnectionPath(targetPoint, originPoint)
         self.scene().addItem(self._connectionPath)
+
+    def disconnect(self) -> None:
+        self._connection.onDisconnect(self)
+        self._connection = None
+        self.scene().removeItem(self._connectionPath)
+        self._connectionPath = None
 
     def updatePath(self) -> None:
         if (self._connectionPath != None):
@@ -123,8 +132,11 @@ class KSNodeOutput(QtWidgets.QGraphicsItem):
     def setData(self, data: typing.Any) -> None:
         self._dataCache = data
 
-    def appendConnected(self, connection: KSNodeInput) -> None:
+    def onConnect(self, connection: KSNodeInput) -> None:
         self._connections.append(connection)
+
+    def onDisconnect(self, connection) -> None:
+        self._connections.remove(connection)
 
     def updatePaths(self) -> None:
         for connection in self._connections:
