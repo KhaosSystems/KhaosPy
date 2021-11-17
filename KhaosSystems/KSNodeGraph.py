@@ -1,5 +1,6 @@
 from PySide2 import QtCore, QtWidgets, QtGui
 from enum import Enum
+import typing
 
 STYLE_QMENU = '''
 QMenu {
@@ -22,14 +23,81 @@ QMenu::separator {
 }
 '''
 
+# TODO: Make a master class of this.
+class KSGraphicsStringInput(QtWidgets.QGraphicsTextItem):
+    def __init__(self, text: str, parent: typing.Optional[QtWidgets.QGraphicsItem] = ...) -> None:
+        super().__init__(text, parent=parent)
+
+        self.setTextInteractionFlags(QtCore.Qt.TextEditable)
+
+    def data(self) -> typing.Any:
+        return self.toPlainText()
+
+class KSNodeInput(QtWidgets.QGraphicsItem):
+    _datatype: type = None
+    _connection: "KSNodeOutput" = None
+    _manualInput: KSGraphicsStringInput = None
+
+    def __init__(self, parent: "KSNodeItem", datatype: type) -> None:
+        super().__init__(parent=parent)
+        self._datatype = datatype
+
+        if (self._datatype == str):
+            self._manualInput = KSGraphicsStringInput("L_Joint_jnt", self)
+
+    def connect(self, output: "KSNodeOutput") -> None:
+        self._connection = output
+        self._manualInput.hide()
+
+    def data(self) -> typing.Any:
+        if (self._connection != None):
+            return self._connection.data()
+        else:
+            return self._manualInput.data()
+
+    def boundingRect(self) -> QtCore.QRectF:
+        return QtCore.QRectF(0, 0, 15, 15)
+
+    def paint(self, painter: QtGui.QPainter, option: QtWidgets.QStyleOptionGraphicsItem, widget: typing.Optional[QtWidgets.QWidget] = ...) -> None:
+        painter.fillRect(self.boundingRect(), QtCore.Qt.red)
+
+class KSNodeOutput(QtWidgets.QGraphicsItem):
+    _dataProvider: "KSNodeItem" = None
+    _datatype: type = None
+    _dataCache: typing.Any = None
+
+    def __init__(self, parent: "KSNodeItem", datatype: type) -> None:
+        super().__init__(parent=parent)
+        self._dataProvider = parent
+        self._datatype = datatype
+
+    def setData(self, data: typing.Any) -> None:
+        self._dataCache = data
+
+    def data(self) -> typing.Any:
+        self._dataProvider.executeImplicit()
+        return self._dataCache
+
+    def boundingRect(self) -> QtCore.QRectF:
+        return QtCore.QRectF(0, 0, 15, 15)
+
+    def paint(self, painter: QtGui.QPainter, option: QtWidgets.QStyleOptionGraphicsItem, widget: typing.Optional[QtWidgets.QWidget] = ...) -> None:
+        painter.fillRect(self.boundingRect(), QtCore.Qt.red)
+
 class KSNodeItem(QtWidgets.QGraphicsItem):
+    _inputs: typing.Dict[str, KSNodeInput] = {}
+    _outputs: typing.Dict[str, KSNodeOutput] = {}
+
     _contextMenu: QtWidgets.QMenu = None
     _title: str = "Node Title"
 
+    _borderWidth: float = None
+    _bodyMarginTop: float = None
+    _bodyMarginBottom: float = None
     _headerSize: QtCore.QRectF = None
     _bodySize: QtCore.QSizeF = None
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.setZValue(1)
 
@@ -37,8 +105,11 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
         self.setFlag(QtWidgets.QGraphicsItem.ItemIsMovable)
         self.setFlag(QtWidgets.QGraphicsItem.ItemIsSelectable)
 
+        self._borderWidth = 2
+        self._bodyMarginTop = 10
+        self._bodyMarginBottom = 10
         self._headerSize = QtCore.QSizeF(200, 33)
-        self._bodySize = QtCore.QSizeF(200, 20)
+        self._bodySize = QtCore.QSizeF(200, self._borderWidth + self._bodyMarginTop + self._bodyMarginBottom)
 
         self._contextMenu = QtWidgets.QMenu()
         self._contextMenu.setMinimumWidth(200)
@@ -51,12 +122,12 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
 
         self._pen = QtGui.QPen()
         self._pen.setStyle(QtCore.Qt.SolidLine)
-        self._pen.setWidth(2)
+        self._pen.setWidth(self._borderWidth)
         self._pen.setColor(QtGui.QColor(50, 50, 50, 255))
 
         self._penSel = QtGui.QPen()
         self._penSel.setStyle(QtCore.Qt.SolidLine)
-        self._penSel.setWidth(2)
+        self._penSel.setWidth(self._borderWidth)
         self._penSel.setColor(QtGui.QColor(219, 158, 0, 255))
 
         self._textPen = QtGui.QPen()
@@ -65,12 +136,93 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
 
         self._nodeTextFont = QtGui.QFont("Arial", 12, QtGui.QFont.Bold)
 
+        self._contextMenu.addAction("Execute", self.executeImplicit)
+
+        self.createInputs()
+        self.createOutputs()
+
+    def createInputs(self) -> None:
+        self._inputs = {}
+
+        executeAnnotations: dict = self.execute.__annotations__
+        for annotationKey in executeAnnotations:
+            if (annotationKey == 'return'):
+                continue
+            else:
+                newInput = KSNodeInput(self, executeAnnotations[annotationKey])
+
+                position = QtCore.QPointF()
+                position.setX(-newInput.boundingRect().width() / 2 + self._borderWidth / 2)
+                position.setY(sum([self._inputs[key].boundingRect().height() for key in self._inputs]) + self._borderWidth / 2 + self._bodyMarginBottom + self.bodyBoundingRect().y())
+                newInput.setPos(position)
+                
+                self._inputs[annotationKey] = newInput 
+
+                self.recalculateBodySize()
+
+    def createOutputs(self) -> None:
+        self._outputs = {}
+
+        executeAnnotations: dict = self.execute.__annotations__
+        if ('return' not in executeAnnotations):
+            print("ERROR: The 'execute' function always need to provide a return type! If the desired return type is void/None, use the 'None' type.")
+            return
+
+        if (executeAnnotations['return'] != None):
+            newOutput = KSNodeOutput(self, executeAnnotations['return'])
+
+            position = QtCore.QPointF()
+            position.setX(self.bodyBoundingRect().width() - (newOutput.boundingRect().width() / 2 + self._borderWidth / 2))
+            position.setY(sum([self._inputs[key].boundingRect().height() for key in self._inputs]) + self._borderWidth / 2 + self._bodyMarginBottom + self.bodyBoundingRect().y())
+            newOutput.setPos(position)
+
+            self._outputs['return'] = newOutput 
+
+            self.recalculateBodySize()
+
+    def executeImplicit(self) -> None:
+        executeAnnotations: dict = self.execute.__annotations__
+        if ('return' not in executeAnnotations):
+            print("ERROR: The 'execute' function always need to provide a return type! If the desired return type is void/None, use the 'None' type.")
+            return
+
+        executeArgs = []
+        for annotationKey in executeAnnotations:
+            if (annotationKey == 'return'):
+                continue
+            elif (annotationKey in self._inputs):
+                executeArgs.append(self._inputs[annotationKey].data())
+            else:
+                print(f"ERROR: Failed to provide 'execute()' argument with identifier: {annotationKey}")
+
+        if (executeAnnotations['return'] == None):
+            self.execute(*executeArgs)
+        else:
+            executeReturnData = self.execute(*executeArgs)
+            if (type(executeReturnData) != executeAnnotations['return']):
+                print("ERROR: The data returned by execute() did not match with the specified return type!")
+                return
+            self._outputs['return'].setData(executeReturnData)
+
+    def execute(self) -> None:
+        pass
+
     @property
     def pen(self):
         if self.isSelected():
             return self._penSel
         else:
             return self._pen
+
+    def recalculateBodySize(self):
+        newWidth = self._bodySize.width()
+        newHeight = self._borderWidth + self._bodyMarginTop + self._bodyMarginBottom
+
+        inputHeight = sum([self._inputs[key].boundingRect().height() for key in self._inputs])
+        outputHeight = sum([self._outputs[key].boundingRect().height() for key in self._outputs])
+        newHeight += max(inputHeight, outputHeight)
+
+        self._bodySize = QtCore.QSizeF(newWidth, newHeight)
 
     def headerBoundingRect(self) -> QtCore.QRectF:
         margin = (self._headerSize.width() - self._bodySize.width()) * 0.5
@@ -91,7 +243,7 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
         # Node base.
         painter.setBrush(self._brush)
         painter.setPen(self.pen)
-        margin = QtCore.QMarginsF(self.pen.width() / 2, self.pen.width() / 2, self.pen.width() / 2, self.pen.width() / 2)
+        margin = QtCore.QMarginsF(self._borderWidth / 2, self._borderWidth / 2, self._borderWidth / 2, self._borderWidth / 2)
         painter.drawRoundedRect(self.bodyBoundingRect().marginsRemoved(margin), 10, 10)
 
         # Node label.
