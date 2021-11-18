@@ -436,6 +436,8 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
 
     _nodeTypes: typing.Dict[str, type] = {}
 
+    _addNodeMenu: QtWidgets.QMenu = None
+
     def __init__(self, parent):
         super().__init__(parent)
 
@@ -444,10 +446,20 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
         self.frameSelectedAction.triggered.connect(self.frameSelected)
         self.addAction(self.frameSelectedAction)
 
+        self.showAddNodeMenuAction = QtWidgets.QAction("Add Node", self)
+        self.showAddNodeMenuAction.setShortcut(QtGui.QKeySequence(QtCore.Qt.Key_Tab))
+        self.showAddNodeMenuAction.triggered.connect(self.toggleAddNodeMenu)
+        self.addAction(self.showAddNodeMenuAction)
+
         self._contextMenu = QtWidgets.QMenu()
         self._contextMenu.setMinimumWidth(200)
         self._contextMenu.setStyleSheet(STYLE_QMENU)
         self._contextMenu.addAction(self.frameSelectedAction)
+        self._contextMenu.addAction(self.showAddNodeMenuAction)
+
+        self._addNodeMenu = QtWidgets.QMenu()
+        self._addNodeMenu.setMinimumWidth(200)
+        self._addNodeMenu.setStyleSheet(STYLE_QMENU)
 
         self.currentState = 'DEFAULT'
 
@@ -492,7 +504,6 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
                 for item in data['items']:
                     node = KSNodeItem.deserialize(self, item)
                     self.addNode(node)
-
     # endregion
 
     # region Rubberband
@@ -555,11 +566,23 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
         self.scene().nodes['name'] = node
         self.scene().addItem(node)
 
+
     def addNodeType(self, nodeType: type) -> None:
         if (isinstance(nodeType, KSNodeItem) and nodeType.typeIdentifier() in self._nodeTypes):
             print(f"ERROR: The node dictionary already contains an entry with identifier: {nodeType.typeIdentifier()}.")
             return
+        
         self._nodeTypes[nodeType.typeIdentifier()] = nodeType
+
+        addNodeAction = QtWidgets.QAction(str(nodeType._title), self)
+        addNodeAction.triggered.connect( lambda checked: self.addNodeFromType(nodeType) )
+        self._addNodeMenu.addAction(addNodeAction)
+
+    def addNodeFromType(self, nodeType: type) -> None:
+        print(nodeType)
+        node = nodeType()
+        node.setPos(self.mapToScene(self.mapFromGlobal(QtGui.QCursor.pos())))
+        self.addNode(node)
 
     def getNodeTypeFromIdentifier(self, identifier: str) -> type:
         return self._nodeTypes[identifier]
@@ -579,7 +602,9 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
         else:
             super().contextMenuEvent(event)
 
-    # region Mouse events
+    def toggleAddNodeMenu(self) -> None:
+        self._addNodeMenu.exec_(QtGui.QCursor.pos())
+
     def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
         super().keyPressEvent(event)
 
@@ -587,6 +612,7 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
         if event.key() == QtCore.Qt.Key_F:
             self.frameSelected()
 
+    # region Mouse events
     def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
         if event.button() == QtCore.Qt.RightButton:
             self._lastRightMousePressPosition = event.pos()

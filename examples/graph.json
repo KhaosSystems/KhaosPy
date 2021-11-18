@@ -1,0 +1,1 @@
+{"items": [{"typeIdentifier": "StringConstantNode", "inputs": {}}, {"typeIdentifier": "PrintString", "inputs": {"string": {"manualInput": "L_Joint_jnt123"}, "boolean": {"manualInput": false}}}]}

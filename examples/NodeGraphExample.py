@@ -6,18 +6,14 @@ from KhaosSystems import KSNodeGraph, KSNodeItem, KSVector, KSNodeInput, KSNodeO
 from PySide2 import QtWidgets, QtCore, QtGui
 
 class StringConstantNode(KSNodeItem):
-    def __init__(self):
-        super().__init__()
-        self._title = "Sting Constant"
+    _title: str = "Sting Constant"
 
     def execute(self) -> str:
         return "String123"
     
 class PrintString(KSNodeItem):
-    def __init__(self):
-        super().__init__()
-        self._title = "Print String"
-
+    _title: str = "Print String"
+    
     def execute(self, string: str, boolean: bool) -> None:
         print(string)
 
