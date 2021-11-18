@@ -2,6 +2,7 @@ from PySide2 import QtCore, QtWidgets, QtGui
 from enum import Enum
 import typing
 import json
+import uuid
 
 STYLE_QMENU = '''
 QMenu {
@@ -207,6 +208,8 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
     _headerSize: QtCore.QRectF = None
     _bodySize: QtCore.QSizeF = None
 
+    _uniqueIdentifier: int = None
+
     def __init__(self) -> None:
         super().__init__()
         self.setZValue(1)
@@ -320,8 +323,9 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
     # region Serialization
     def serialize(self) -> object:
         data = {
-            'uniqueIdentifier': id(self),
             'typeIdentifier': self.typeIdentifier(),
+            'uniqueIdentifier': self.uniqueIdentifier(),
+            'position': [self.scenePos().x(), self.scenePos().y()],
             'inputs': { i:self._inputs[i].serialize() for i in self._inputs }
         }
 
@@ -337,6 +341,11 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
             return
         
         node = nodeType()
+
+        node._uniqueIdentifier = data['uniqueIdentifier']
+        
+        node.setPos(data['position'][0], data['position'][1])
+
         for inputKey in data['inputs']:
             if (inputKey in node._inputs):
                 inputData = data['inputs'][inputKey]
@@ -347,6 +356,9 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
     @classmethod
     def typeIdentifier(cls) -> str:
         return cls.__name__
+    
+    def uniqueIdentifier(self) -> int:
+        return self._uniqueIdentifier if self._uniqueIdentifier != None else uuid.uuid4().int
     # endregion
 
     @property
