@@ -320,6 +320,7 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
     # region Serialization
     def serialize(self) -> object:
         data = {
+            'uniqueIdentifier': id(self),
             'typeIdentifier': self.typeIdentifier(),
             'inputs': { i:self._inputs[i].serialize() for i in self._inputs }
         }
@@ -438,6 +439,8 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
 
     _addNodeMenu: QtWidgets.QMenu = None
 
+    _activeFilepath: str = None
+
     def __init__(self, parent):
         super().__init__(parent)
 
@@ -451,11 +454,29 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
         self.showAddNodeMenuAction.triggered.connect(self.toggleAddNodeMenu)
         self.addAction(self.showAddNodeMenuAction)
 
+        self.saveFileAction = QtWidgets.QAction("Save", self)
+        self.saveFileAction.setShortcut(QtGui.QKeySequence('Ctrl+S'))
+        self.saveFileAction.triggered.connect(self.saveFile)
+        self.addAction(self.saveFileAction)
+
+        self.saveFileAsAction = QtWidgets.QAction("Save As", self)
+        self.saveFileAsAction.setShortcut(QtGui.QKeySequence('Ctrl+Shift+S'))
+        self.saveFileAsAction.triggered.connect(self.saveFileAs)
+        self.addAction(self.saveFileAsAction)
+
+        self.openFileAction = QtWidgets.QAction("Open File", self)
+        self.openFileAction.setShortcut(QtGui.QKeySequence('Ctrl+O'))
+        self.openFileAction.triggered.connect(self.openFile)
+        self.addAction(self.openFileAction)
+
         self._contextMenu = QtWidgets.QMenu()
         self._contextMenu.setMinimumWidth(200)
         self._contextMenu.setStyleSheet(STYLE_QMENU)
         self._contextMenu.addAction(self.frameSelectedAction)
         self._contextMenu.addAction(self.showAddNodeMenuAction)
+        self._contextMenu.addAction(self.saveFileAction)
+        self._contextMenu.addAction(self.saveFileAsAction)
+        self._contextMenu.addAction(self.openFileAction)
 
         self._addNodeMenu = QtWidgets.QMenu()
         self._addNodeMenu.setMinimumWidth(200)
@@ -485,7 +506,26 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
         self.show()
 
     # region Serialization and deserialization
-    def serializeToFile(self, filePath: str) -> None:
+    def saveFile(self):
+        if (self._activeFilepath != None):
+            with open(self._activeFilepath, "w") as filepath:
+                filepath.write(self.serializeToJson())
+        else:
+            self.saveFileAs()
+
+    def saveFileAs(self):
+        fileInfo = QtWidgets.QFileDialog.getSaveFileName(self, caption="Save As", filter="Json Files (*.json)")
+        self._activeFilepath = fileInfo[0]
+        with open(self._activeFilepath, "w") as file:
+            file.write(self.serializeToJson())
+
+    def openFile(self):
+        filepath = QtWidgets.QFileDialog.getOpenFileName(self, caption="Open File", filter="Json Files (*.json)")
+        with open(filepath[0]) as file:
+            data = file.read().replace('\n', '')
+            self.deserializeFromJson(data)
+
+    def serializeToJson(self) -> str:
         # Items
         items = []
         for item in self.scene().items():
@@ -493,17 +533,23 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
                 items.append(item.serialize())
                 
         data = { 'items': items }
-        with open(filePath, 'w') as outfile:
-            json.dump(data, outfile)
+        return json.dumps(data)
 
-    def deserializeFromFile(self, filePath: str) -> None:
-        with open(filePath) as json_file:
-            data = json.load(json_file)
-            if (data['items'] != None):
-                print(f"Deserializing {len(data['items'])} items:")
-                for item in data['items']:
-                    node = KSNodeItem.deserialize(self, item)
-                    self.addNode(node)
+    def deserializeFromJson(self, jsonStr: str) -> None:
+        data = json.loads(jsonStr)
+
+        # Deserialize items
+        if (data['items'] != None):
+            print(f"Deserializing {len(data['items'])} items:")
+                
+            # Add items
+            for item in data['items']:
+                node = KSNodeItem.deserialize(self, item)
+                self.addNode(node)
+
+            # Add connections
+            for item in data['items']:
+                pass
     # endregion
 
     # region Rubberband
@@ -566,7 +612,6 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
         self.scene().nodes['name'] = node
         self.scene().addItem(node)
 
-
     def addNodeType(self, nodeType: type) -> None:
         if (isinstance(nodeType, KSNodeItem) and nodeType.typeIdentifier() in self._nodeTypes):
             print(f"ERROR: The node dictionary already contains an entry with identifier: {nodeType.typeIdentifier()}.")
@@ -575,10 +620,10 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
         self._nodeTypes[nodeType.typeIdentifier()] = nodeType
 
         addNodeAction = QtWidgets.QAction(str(nodeType._title), self)
-        addNodeAction.triggered.connect( lambda checked: self.addNodeFromType(nodeType) )
+        addNodeAction.triggered.connect( lambda checked: self.addNodeFromNodeMenu(nodeType) )
         self._addNodeMenu.addAction(addNodeAction)
 
-    def addNodeFromType(self, nodeType: type) -> None:
+    def addNodeFromNodeMenu(self, nodeType: type) -> None:
         print(nodeType)
         node = nodeType()
         node.setPos(self.mapToScene(self.mapFromGlobal(QtGui.QCursor.pos())))

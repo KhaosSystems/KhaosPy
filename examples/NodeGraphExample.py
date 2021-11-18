@@ -23,8 +23,5 @@ nodeGraph = KSNodeGraph(None)
 nodeGraph.addNodeType(StringConstantNode)
 nodeGraph.addNodeType(PrintString)
 
-nodeGraph.deserializeFromFile("./graph.json")
-nodeGraph.serializeToFile("./graph.json")
-
 
 app.exec_()
