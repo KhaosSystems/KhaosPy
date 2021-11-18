@@ -1,1 +1,1 @@
-{"items": [{"uniqueIdentifier": 2408539937216, "typeIdentifier": "PrintString", "inputs": {"string": {"manualInput": "L_Joint_jnt123"}, "boolean": {"manualInput": false}}}, {"uniqueIdentifier": 2408539935808, "typeIdentifier": "StringConstantNode", "inputs": {}}]}
+{"items": [{"uniqueIdentifier": 2052992138176, "typeIdentifier": "PrintString", "inputs": {"string": {"manualInput": "L"}, "boolean": {"manualInput": false}}}, {"uniqueIdentifier": 2052992152128, "typeIdentifier": "StringConstantNode", "inputs": {}}]}

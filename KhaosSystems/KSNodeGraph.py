@@ -521,6 +521,7 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
 
     def openFile(self):
         filepath = QtWidgets.QFileDialog.getOpenFileName(self, caption="Open File", filter="Json Files (*.json)")
+        self.removeAllNodes()
         with open(filepath[0]) as file:
             data = file.read().replace('\n', '')
             self.deserializeFromJson(data)
@@ -611,6 +612,15 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
             return
         self.scene().nodes['name'] = node
         self.scene().addItem(node)
+
+    def removeNode(self, node: KSNodeInput) -> None:
+        if (node in self.scene().items()):
+           self.scene().removeItem(node)
+
+    def removeAllNodes(self) -> None:
+        for item in self.scene().items():
+            if (isinstance(item, KSNodeItem)):
+                self.removeNode(item)
 
     def addNodeType(self, nodeType: type) -> None:
         if (isinstance(nodeType, KSNodeItem) and nodeType.typeIdentifier() in self._nodeTypes):
