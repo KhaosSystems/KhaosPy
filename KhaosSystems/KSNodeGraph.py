@@ -31,7 +31,10 @@ class KSGraphicsStringInput(QtWidgets.QGraphicsTextItem):
 
         self.setTextInteractionFlags(QtCore.Qt.TextEditable)
 
-    def data(self) -> typing.Any:
+    def setData(self, data: str) -> None:
+        self.setPlainText(data)
+
+    def data(self) -> str:
         return self.toPlainText()
 
 class KSGraphicsBoolInput(QtWidgets.QGraphicsItem):
@@ -53,6 +56,9 @@ class KSGraphicsBoolInput(QtWidgets.QGraphicsItem):
         super().mousePressEvent(event)
         self._data = not self._data
         self.update()
+
+    def setData(self, data: bool) -> None:
+        self._data = data
 
     def data(self) -> bool:
         return self._data
@@ -141,6 +147,12 @@ class KSNodeInput(QtWidgets.QGraphicsItem):
             return self._connection.data()
         else:
             return self._manualInput.data()
+
+    def serialize(self) -> object:
+        return { 'manualInput': self._manualInput.data() }
+
+    def deserialize(self, data: object) -> None:
+        self._manualInput.setData(data['manualInput'])
 
     def boundingRect(self) -> QtCore.QRectF:
         return QtCore.QRectF(0, 0, 15, 15)
@@ -307,16 +319,29 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
 
     # region Serialization
     def serialize(self) -> object:
-        data = {}
-        data['className'] = str(self.__class__.__name__)
-        
-        # Inputs
-        data['manualInputs'] = {}
-        for inputKey in self._inputs:
-            if (self._inputs[inputKey].isUsingManualInput()):
-                data['manualInputs'][inputKey] = self._inputs[inputKey].data()
+        data = {
+            'typeIdentifier': self.typeIdentifier(),
+            'inputs': { i:self._inputs[i].serialize() for i in self._inputs }
+        }
 
         return data
+
+    @staticmethod
+    def deserialize(nodeGraph: "KSNodeGraph", data: object) -> KSNodeInput:
+        print(f" - {data}")
+
+        nodeType = nodeGraph.getNodeTypeFromIdentifier(data['typeIdentifier'])
+        if (nodeType != None and isinstance(nodeType, KSNodeItem)):
+            print("ERROR: Failed to deserialize node.")
+            return
+        
+        node = nodeType()
+        for inputKey in data['inputs']:
+            if (inputKey in node._inputs):
+                inputData = data['inputs'][inputKey]
+                node._inputs[inputKey].deserialize(inputData)
+
+        return node
 
     @classmethod
     def typeIdentifier(cls) -> str:
@@ -453,9 +478,7 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
         items = []
         for item in self.scene().items():
             if (isinstance(item, KSNodeItem)):
-                items.append({
-                    'typeIdentifier': item.typeIdentifier()
-                })
+                items.append(item.serialize())
                 
         data = { 'items': items }
         with open(filePath, 'w') as outfile:
@@ -467,12 +490,8 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
             if (data['items'] != None):
                 print(f"Deserializing {len(data['items'])} items:")
                 for item in data['items']:
-                    print(f" - {item}")
-                    if (item['typeIdentifier'] in self._nodeTypes):
-                        nodeType = self._nodeTypes[item['typeIdentifier']]
-                        node = nodeType()
-                        self.addNode(node)
-                    
+                    node = KSNodeItem.deserialize(self, item)
+                    self.addNode(node)
 
     # endregion
 
@@ -536,11 +555,14 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
         self.scene().nodes['name'] = node
         self.scene().addItem(node)
 
-    def addNodeType(self, nodeType: type):
+    def addNodeType(self, nodeType: type) -> None:
         if (isinstance(nodeType, KSNodeItem) and nodeType.typeIdentifier() in self._nodeTypes):
             print(f"ERROR: The node dictionary already contains an entry with identifier: {nodeType.typeIdentifier()}.")
             return
         self._nodeTypes[nodeType.typeIdentifier()] = nodeType
+
+    def getNodeTypeFromIdentifier(self, identifier: str) -> type:
+        return self._nodeTypes[identifier]
     # endregion
 
     def frameSelected(self):

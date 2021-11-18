@@ -24,16 +24,11 @@ class PrintString(KSNodeItem):
 app = QtWidgets.QApplication()
 
 nodeGraph = KSNodeGraph(None)
-nodeA = StringConstantNode()
-nodeB = PrintString()
-
 nodeGraph.addNodeType(StringConstantNode)
 nodeGraph.addNodeType(PrintString)
 
-nodeGraph.addNode(nodeA)
-nodeGraph.addNode(nodeB)
-
-nodeGraph.serializeToFile("./graph.json")
 nodeGraph.deserializeFromFile("./graph.json")
+nodeGraph.serializeToFile("./graph.json")
+
 
 app.exec_()
