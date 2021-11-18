@@ -1,12 +1,13 @@
 from PySide2 import QtCore, QtWidgets, QtGui
 from enum import Enum
 import typing
+import json
 
 STYLE_QMENU = '''
 QMenu {
     color: rgba(255, 255, 255, 200);
     background-color: rgba(47, 47, 47, 255);
-    border: 1px solid rgba(0, 0, 0, 30);
+    border: 1px solid rgba(0, 0, 0, 30); 
 }
 QMenu::item {
     padding: 5px 18px 2px;
@@ -32,6 +33,29 @@ class KSGraphicsStringInput(QtWidgets.QGraphicsTextItem):
 
     def data(self) -> typing.Any:
         return self.toPlainText()
+
+class KSGraphicsBoolInput(QtWidgets.QGraphicsItem):
+    _data: bool = False
+
+    def __init__(self, parent: QtWidgets.QGraphicsItem) -> None:
+        super().__init__(parent=parent)
+    
+    def boundingRect(self) -> QtCore.QRectF:
+        return QtCore.QRectF(0, 0, 15, 15)
+
+    def paint(self, painter: QtGui.QPainter, option: QtWidgets.QStyleOptionGraphicsItem, widget: typing.Optional[QtWidgets.QWidget] = ...) -> None:
+        if (self._data):
+            painter.fillRect(self.boundingRect(), QtCore.Qt.green)
+        else:
+            painter.fillRect(self.boundingRect(), QtCore.Qt.red)
+
+    def mousePressEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent) -> None:
+        super().mousePressEvent(event)
+        self._data = not self._data
+        self.update()
+
+    def data(self) -> bool:
+        return self._data
 
 class KSNodeConnectionPath(QtWidgets.QGraphicsPathItem):
     originPoint: QtCore.QPointF = None
@@ -80,6 +104,12 @@ class KSNodeInput(QtWidgets.QGraphicsItem):
         if (self._datatype == str):
             self._manualInput = KSGraphicsStringInput("L_Joint_jnt", self)
             self._manualInput.setPos(15, 0)
+        elif(self._datatype == bool):
+            self._manualInput = KSGraphicsBoolInput(self)
+            self._manualInput.setPos(15, 0)
+
+    def isUsingManualInput(self) -> bool:
+        return self._connection == None
 
     def connect(self, output: "KSNodeOutput") -> None:
         if (self._connection != None):
@@ -275,6 +305,24 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
     def execute(self) -> None:
         pass
 
+    # region Serialization
+    def serialize(self) -> object:
+        data = {}
+        data['className'] = str(self.__class__.__name__)
+        
+        # Inputs
+        data['manualInputs'] = {}
+        for inputKey in self._inputs:
+            if (self._inputs[inputKey].isUsingManualInput()):
+                data['manualInputs'][inputKey] = self._inputs[inputKey].data()
+
+        return data
+
+    @classmethod
+    def typeIdentifier(cls) -> str:
+        return cls.__name__
+    # endregion
+
     @property
     def pen(self):
         if self.isSelected():
@@ -361,6 +409,8 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
     _connectionPath: KSNodeConnectionPath = None
     _connectionOriginItem: typing.Union[KSNodeInput, KSNodeOutput] = None
 
+    _nodeTypes: typing.Dict[str, type] = {}
+
     def __init__(self, parent):
         super().__init__(parent)
 
@@ -396,6 +446,35 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
         self.setScene(scene)
 
         self.show()
+
+    # region Serialization and deserialization
+    def serializeToFile(self, filePath: str) -> None:
+        # Items
+        items = []
+        for item in self.scene().items():
+            if (isinstance(item, KSNodeItem)):
+                items.append({
+                    'typeIdentifier': item.typeIdentifier()
+                })
+                
+        data = { 'items': items }
+        with open(filePath, 'w') as outfile:
+            json.dump(data, outfile)
+
+    def deserializeFromFile(self, filePath: str) -> None:
+        with open(filePath) as json_file:
+            data = json.load(json_file)
+            if (data['items'] != None):
+                print(f"Deserializing {len(data['items'])} items:")
+                for item in data['items']:
+                    print(f" - {item}")
+                    if (item['typeIdentifier'] in self._nodeTypes):
+                        nodeType = self._nodeTypes[item['typeIdentifier']]
+                        node = nodeType()
+                        self.addNode(node)
+                    
+
+    # endregion
 
     # region Rubberband
     def startRubberband(self, position):
@@ -451,8 +530,17 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
 
     # region Node related
     def addNode(self, node: KSNodeItem) -> None:
+        if (node.__class__.__name__ not in self._nodeTypes):
+            print(f"ERROR: Failed to find node type with identifier: {node.__class__.__name__} in the node dictionary.")
+            return
         self.scene().nodes['name'] = node
         self.scene().addItem(node)
+
+    def addNodeType(self, nodeType: type):
+        if (isinstance(nodeType, KSNodeItem) and nodeType.typeIdentifier() in self._nodeTypes):
+            print(f"ERROR: The node dictionary already contains an entry with identifier: {nodeType.typeIdentifier()}.")
+            return
+        self._nodeTypes[nodeType.typeIdentifier()] = nodeType
     # endregion
 
     def frameSelected(self):

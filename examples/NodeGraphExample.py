@@ -4,7 +4,6 @@ importlib.reload(KhaosSystems)
 
 from KhaosSystems import KSNodeGraph, KSNodeItem, KSVector, KSNodeInput, KSNodeOutput
 from PySide2 import QtWidgets, QtCore, QtGui
-import typing
 
 class StringConstantNode(KSNodeItem):
     def __init__(self):
@@ -19,7 +18,7 @@ class PrintString(KSNodeItem):
         super().__init__()
         self._title = "Print String"
 
-    def execute(self, string: str) -> None:
+    def execute(self, string: str, boolean: bool) -> None:
         print(string)
 
 app = QtWidgets.QApplication()
@@ -28,7 +27,13 @@ nodeGraph = KSNodeGraph(None)
 nodeA = StringConstantNode()
 nodeB = PrintString()
 
+nodeGraph.addNodeType(StringConstantNode)
+nodeGraph.addNodeType(PrintString)
+
 nodeGraph.addNode(nodeA)
 nodeGraph.addNode(nodeB)
+
+nodeGraph.serializeToFile("./graph.json")
+nodeGraph.deserializeFromFile("./graph.json")
 
 app.exec_()
