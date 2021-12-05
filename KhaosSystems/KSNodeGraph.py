@@ -293,6 +293,7 @@ class KSNodeOutput(QtWidgets.QGraphicsItem):
 class KSNodeItem(QtWidgets.QGraphicsItem):
     _title: str = "Node Title"
     
+    _inputDefinitions: typing.Dict[str, type] = {}
     _outputDefinitions: typing.Dict[str, type] = {}
 
     _inputs: typing.Dict[str, KSNodeInput] = {}
@@ -364,44 +365,19 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
     def createInputs(self) -> None:
         self._inputs = {}
 
-        executeAnnotations: dict = self.execute.__annotations__
-        for annotationKey in executeAnnotations:
-            if (annotationKey == 'return'):
-                continue
-            else:
-                newInput = KSNodeInput(self, executeAnnotations[annotationKey])
+        for inputDefinitionKey in self._inputDefinitions:
+            newInput = KSNodeInput(self, self._inputDefinitions[inputDefinitionKey])
 
-                position = QtCore.QPointF()
-                position.setX(-newInput.boundingRect().width() / 2 + self._borderWidth / 2)
-                position.setY(sum([self._inputs[key].boundingRect().height() for key in self._inputs]) + self._borderWidth / 2 + self._bodyMarginBottom + self.bodyBoundingRect().y())
-                newInput.setPos(position)
+            position = QtCore.QPointF()
+            position.setX(-newInput.boundingRect().width() / 2 + self._borderWidth / 2)
+            position.setY(sum([self._inputs[key].boundingRect().height() for key in self._inputs]) + self._borderWidth / 2 + self._bodyMarginBottom + self.bodyBoundingRect().y())
+            newInput.setPos(position)
                 
-                self._inputs[annotationKey] = newInput 
+            self._inputs[inputDefinitionKey] = newInput 
 
-                self.recalculateBodySize()
+            self.recalculateBodySize()
 
     def createOutputs(self) -> None:
-        """self._outputs = {}
-
-        executeAnnotations: dict = self.execute.__annotations__
-        if ('return' not in executeAnnotations):
-            print("ERROR: The 'execute' function always need to provide a return type! If the desired return type is void/None, use the 'None' type.")
-            return
-
-        if (executeAnnotations['return'] != None):
-            if (executeAnnotations['return'] == typing.NamedTuple):
-                print("WORKING")
-            else:
-                newOutput = KSNodeOutput(self, executeAnnotations['return'])
-
-                position = QtCore.QPointF()
-                position.setX(self.bodyBoundingRect().width() - (newOutput.boundingRect().width() / 2 + self._borderWidth / 2))
-                position.setY(sum([self._inputs[key].boundingRect().height() for key in self._inputs]) + self._borderWidth / 2 + self._bodyMarginBottom + self.bodyBoundingRect().y())
-                newOutput.setPos(position)
-
-                self._outputs['return'] = newOutput 
-
-            self.recalculateBodySize()"""
 
         self._outputs = {}
 

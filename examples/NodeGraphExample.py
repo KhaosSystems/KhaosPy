@@ -11,13 +11,15 @@ class StringConstantNode(KSNodeItem):
     _outputDefinitions: typing.Dict[str, type] = {"String": str, "Int": int}
 
     def execute(self) -> None:
-        return "String1234"
+        self._outputs["String"].setData("String1234")
+        self._outputs["Int"].setData(1234)
 
 class PrintString(KSNodeItem):
     _title: str = "Print String"
-    
-    def execute(self, string: str, boolean: bool) -> None:
-        print(string)
+    _inputDefinitions: typing.Dict[str, type] = {"String": str, "Boolean": bool}
+
+    def execute(self) -> None:
+        print(self._inputs["String"].data())
 
 app = QtWidgets.QApplication()
 
