@@ -12,28 +12,24 @@ class KSColor(object):
     b: int = 0
     a: int = 0
 
-    def __init__(self, r: int, g: int, b: int, a: int):
+    def __init__(self, r: int, g: int, b: int, a: int = 255):
         self.r = r
         self.g = g
         self.b = b
         self.a = a
-    
-    @staticmethod
-    def fromHex(hexString: str) -> "KSColor":
-        offset = 1 if hexString[0] == '#' else 0
-        rHex = hexString[offset:2+offset]
-        gHex = hexString[2+offset:4+offset]
-        bHex = hexString[4+offset:6+offset]
-        aHex = hexString[6+offset:8+offset]
-        print(int(aHex, 16))
 
     def toQColor(self) -> QtGui.QColor:
         return QtGui.QColor(self.r, self.g, self.b, self.a)
 
-KSColor.fromHex("ff001122")
-
 class KSStyleingData(object):
-    COLOR_DATATYPE_STRING: KSColor = KSColor(0, 0, 0, 0)
+    COLOR_VIEWPORT_BACKGROUND: KSColor = KSColor(26, 26, 26)
+    COLOR_NODE_TEXT: KSColor = KSColor(194, 194, 194)
+    COLOR_NODE_BORDER: KSColor = KSColor(51, 51, 51)
+    COLOR_NODE_BORDER_SELECTED: KSColor = KSColor(219, 158, 0)
+    COLOR_NODE_BACKGROUND: KSColor = KSColor(59, 59, 59)
+    COLOR_DATATYPE_VOID: KSColor = KSColor(255, 255, 255)
+    COLOR_DATATYPE_STRING: KSColor = KSColor(0, 194, 255)
+    COLOR_DATATYPE_MATRIX: KSColor = KSColor(255, 170, 0)
 
 STYLE_QMENU = '''
 QMenu {
@@ -150,12 +146,12 @@ class KSNodeInput(QtWidgets.QGraphicsItem):
 
         self._brush = QtGui.QBrush()
         self._brush.setStyle(QtCore.Qt.SolidPattern)
-        self._brush.setColor(QtGui.QColor(70, 70, 70, 255))
+        self._brush.setColor(KSStyleingData.COLOR_DATATYPE_STRING.toQColor())
 
         self._pen = QtGui.QPen()
         self._pen.setStyle(QtCore.Qt.SolidLine)
         self._pen.setWidth(self._borderWidth)
-        self._pen.setColor(QtGui.QColor(50, 50, 50, 255))
+        self._pen.setColor(KSStyleingData.COLOR_NODE_BORDER.toQColor())
 
         if (self._datatype == str):
             self._manualInput = KSGraphicsStringInput("L_Joint_jnt", self)
@@ -229,7 +225,7 @@ class KSNodeInput(QtWidgets.QGraphicsItem):
         return QtCore.QRectF(0, 0, 16, 22)
 
     def paint(self, painter: QtGui.QPainter, option: QtWidgets.QStyleOptionGraphicsItem, widget: typing.Optional[QtWidgets.QWidget] = ...) -> None:
-        painter.fillRect(self.boundingRect(), QtGui.QColor(0, 0, 255, 255))
+        # painter.fillRect(self.boundingRect(), QtGui.QColor(0, 0, 255, 255))
         
         painter.setBrush(self._brush)
         painter.setPen(self._pen)
@@ -338,21 +334,21 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
 
         self._brush = QtGui.QBrush()
         self._brush.setStyle(QtCore.Qt.SolidPattern)
-        self._brush.setColor(QtGui.QColor(70, 70, 70, 255))
+        self._brush.setColor(KSStyleingData.COLOR_NODE_BACKGROUND.toQColor())
 
         self._pen = QtGui.QPen()
         self._pen.setStyle(QtCore.Qt.SolidLine)
         self._pen.setWidth(self._borderWidth)
-        self._pen.setColor(QtGui.QColor(50, 50, 50, 255))
+        self._pen.setColor(KSStyleingData.COLOR_NODE_BORDER.toQColor())
 
         self._penSel = QtGui.QPen()
         self._penSel.setStyle(QtCore.Qt.SolidLine)
         self._penSel.setWidth(self._borderWidth)
-        self._penSel.setColor(QtGui.QColor(219, 158, 0, 255))
+        self._penSel.setColor(KSStyleingData.COLOR_NODE_BORDER_SELECTED.toQColor())
 
         self._textPen = QtGui.QPen()
         self._textPen.setStyle(QtCore.Qt.SolidLine)
-        self._textPen.setColor(QtGui.QColor(230, 230, 230, 255))
+        self._textPen.setColor(KSStyleingData.COLOR_NODE_TEXT.toQColor())
 
         self._nodeTextFont = QtGui.QFont("Arial", 12, QtGui.QFont.Bold)
 
@@ -942,7 +938,7 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
 class KSNodeScene(QtWidgets.QGraphicsScene):
     def __init__(self, parent):
         super().__init__(parent)
-        self.setBackgroundBrush(QtGui.QColor(26, 26, 26))
+        self.setBackgroundBrush(KSStyleingData.COLOR_VIEWPORT_BACKGROUND.toQColor())
         self.nodes = dict()
 
     def addItem(self, item: QtWidgets.QGraphicsItem) -> None:
