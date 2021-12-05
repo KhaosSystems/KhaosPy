@@ -3,6 +3,37 @@ from enum import Enum
 import typing
 import json
 import uuid
+import sys
+import importlib
+
+class KSColor(object):
+    r: int = 0
+    g: int = 0
+    b: int = 0
+    a: int = 0
+
+    def __init__(self, r: int, g: int, b: int, a: int):
+        self.r = r
+        self.g = g
+        self.b = b
+        self.a = a
+    
+    @staticmethod
+    def fromHex(hexString: str) -> "KSColor":
+        offset = 1 if hexString[0] == '#' else 0
+        rHex = hexString[offset:2+offset]
+        gHex = hexString[2+offset:4+offset]
+        bHex = hexString[4+offset:6+offset]
+        aHex = hexString[6+offset:8+offset]
+        print(int(aHex, 16))
+
+    def toQColor(self) -> QtGui.QColor:
+        return QtGui.QColor(self.r, self.g, self.b, self.a)
+
+KSColor.fromHex("ff001122")
+
+class KSStyleingData(object):
+    COLOR_DATATYPE_STRING: KSColor = KSColor(0, 0, 0, 0)
 
 STYLE_QMENU = '''
 QMenu {
@@ -104,9 +135,27 @@ class KSNodeInput(QtWidgets.QGraphicsItem):
     _connectionPath: KSNodeConnectionPath = None
     _manualInput: KSGraphicsStringInput = None
 
+    _uniqueIdentifier: str = None
+
+    _brush: QtGui.QBrush = None
+    _pen: QtGui.QPen = None
+
+    _borderWidth: int = 2
+
     def __init__(self, parent: "KSNodeItem", datatype: type) -> None:
         super().__init__(parent=parent)
         self._datatype = datatype
+
+        self._borderWidth = 2
+
+        self._brush = QtGui.QBrush()
+        self._brush.setStyle(QtCore.Qt.SolidPattern)
+        self._brush.setColor(QtGui.QColor(70, 70, 70, 255))
+
+        self._pen = QtGui.QPen()
+        self._pen.setStyle(QtCore.Qt.SolidLine)
+        self._pen.setWidth(self._borderWidth)
+        self._pen.setColor(QtGui.QColor(50, 50, 50, 255))
 
         if (self._datatype == str):
             self._manualInput = KSGraphicsStringInput("L_Joint_jnt", self)
@@ -150,27 +199,66 @@ class KSNodeInput(QtWidgets.QGraphicsItem):
             return self._manualInput.data()
 
     def serialize(self) -> object:
-        return { 'manualInput': self._manualInput.data() }
+        connectionUUID = ""
+        connectionOutputKey = ""
+        if (self._connection != None):
+            connectionUUID = self._connection.dataProvider().uniqueIdentifier()
 
-    def deserialize(self, data: object) -> None:
-        self._manualInput.setData(data['manualInput'])
+            for key in self._connection.dataProvider()._outputs:
+                if (self._connection.dataProvider()._outputs[key] == self._connection):
+                    connectionOutputKey = key
+
+        return {  
+            'manualInputData': self._manualInput.data(),
+            'connectionUUID': connectionUUID,
+            'connectionOutputKey': connectionOutputKey
+            }
+
+    def deserialize(self, nodeGraph: "KSNodeGraph", data: object) -> None:
+        self._manualInput.setData(data['manualInputData'])
+        
+        connection = None
+        for item in nodeGraph.scene().items():
+            if (isinstance(item, KSNodeItem) and item.uniqueIdentifier() == data['connectionUUID'] and data['connectionOutputKey'] in item._outputs):
+                connection = item._outputs[data['connectionOutputKey']]
+
+        if (connection != None):
+            self.connect(connection)
 
     def boundingRect(self) -> QtCore.QRectF:
-        return QtCore.QRectF(0, 0, 15, 15)
+        return QtCore.QRectF(0, 0, 16, 22)
 
     def paint(self, painter: QtGui.QPainter, option: QtWidgets.QStyleOptionGraphicsItem, widget: typing.Optional[QtWidgets.QWidget] = ...) -> None:
-        painter.fillRect(self.boundingRect(), QtCore.Qt.red)
+        painter.fillRect(self.boundingRect(), QtGui.QColor(0, 0, 255, 255))
+        
+        painter.setBrush(self._brush)
+        painter.setPen(self._pen)
+        painter.drawEllipse(1, 4, 14, 14)
 
 class KSNodeOutput(QtWidgets.QGraphicsItem):
     _dataProvider: "KSNodeItem" = None
     _datatype: type = None
     _dataCache: typing.Any = None
     _connections: typing.List[KSNodeInput] = []
+    
+    _brush: QtGui.QBrush = None
+    _pen: QtGui.QPen = None
+
+    _borderWidth: int = 2
 
     def __init__(self, parent: "KSNodeItem", datatype: type) -> None:
         super().__init__(parent=parent)
         self._dataProvider = parent
         self._datatype = datatype
+
+        self._brush = QtGui.QBrush()
+        self._brush.setStyle(QtCore.Qt.SolidPattern)
+        self._brush.setColor(QtGui.QColor(70, 70, 70, 255))
+
+        self._pen = QtGui.QPen()
+        self._pen.setStyle(QtCore.Qt.SolidLine)
+        self._pen.setWidth(self._borderWidth)
+        self._pen.setColor(QtGui.QColor(50, 50, 50, 255))
 
     def setData(self, data: typing.Any) -> None:
         self._dataCache = data
@@ -185,22 +273,37 @@ class KSNodeOutput(QtWidgets.QGraphicsItem):
         for connection in self._connections:
             connection.updatePath()
 
+    def dataProvider(self) -> "KSNodeItem":
+        return self._dataProvider
+
     def data(self) -> typing.Any:
         self._dataProvider.executeImplicit()
         return self._dataCache
 
     def boundingRect(self) -> QtCore.QRectF:
-        return QtCore.QRectF(0, 0, 15, 15)
+        return QtCore.QRectF(0, 0, 16, 22)
 
     def paint(self, painter: QtGui.QPainter, option: QtWidgets.QStyleOptionGraphicsItem, widget: typing.Optional[QtWidgets.QWidget] = ...) -> None:
         painter.fillRect(self.boundingRect(), QtCore.Qt.red)
 
+        painter.setBrush(self._brush)
+        painter.setPen(self._pen)
+        painter.drawEllipse(1, 4, 14, 14)
+
 class KSNodeItem(QtWidgets.QGraphicsItem):
+    _title: str = "Node Title"
+    
+    _outputDefinitions: typing.Dict[str, type] = {}
+
     _inputs: typing.Dict[str, KSNodeInput] = {}
     _outputs: typing.Dict[str, KSNodeOutput] = {}
 
+    _outputDefinitions: typing.Dict[str, type]
+
     _contextMenu: QtWidgets.QMenu = None
-    _title: str = "Node Title"
+
+    _brush: QtGui.QBrush = None
+    _pen: QtGui.QPen = None
 
     _borderWidth: float = None
     _bodyMarginTop: float = None
@@ -208,7 +311,9 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
     _headerSize: QtCore.QRectF = None
     _bodySize: QtCore.QSizeF = None
 
-    _uniqueIdentifier: int = None
+    _uniqueIdentifier: str = None
+
+    _tmpDisableAutoOutputs: bool = False
 
     def __init__(self) -> None:
         super().__init__()
@@ -228,6 +333,7 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
         self._contextMenu.setMinimumWidth(200)
         self._contextMenu.setStyleSheet(STYLE_QMENU)
         self._contextMenu.addAction("Remove", self.remove)
+        self._contextMenu.addAction("Reload", self.reload)
 
         self._brush = QtGui.QBrush()
         self._brush.setStyle(QtCore.Qt.SolidPattern)
@@ -252,7 +358,8 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
         self._contextMenu.addAction("Execute", self.executeImplicit)
 
         self.createInputs()
-        self.createOutputs()
+        if not self._tmpDisableAutoOutputs:
+            self.createOutputs()
 
     def createInputs(self) -> None:
         self._inputs = {}
@@ -274,7 +381,7 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
                 self.recalculateBodySize()
 
     def createOutputs(self) -> None:
-        self._outputs = {}
+        """self._outputs = {}
 
         executeAnnotations: dict = self.execute.__annotations__
         if ('return' not in executeAnnotations):
@@ -282,14 +389,31 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
             return
 
         if (executeAnnotations['return'] != None):
-            newOutput = KSNodeOutput(self, executeAnnotations['return'])
+            if (executeAnnotations['return'] == typing.NamedTuple):
+                print("WORKING")
+            else:
+                newOutput = KSNodeOutput(self, executeAnnotations['return'])
+
+                position = QtCore.QPointF()
+                position.setX(self.bodyBoundingRect().width() - (newOutput.boundingRect().width() / 2 + self._borderWidth / 2))
+                position.setY(sum([self._inputs[key].boundingRect().height() for key in self._inputs]) + self._borderWidth / 2 + self._bodyMarginBottom + self.bodyBoundingRect().y())
+                newOutput.setPos(position)
+
+                self._outputs['return'] = newOutput 
+
+            self.recalculateBodySize()"""
+
+        self._outputs = {}
+
+        for outputDefinitionKey in self._outputDefinitions:
+            newOutput = KSNodeOutput(self, self._outputDefinitions[outputDefinitionKey])
 
             position = QtCore.QPointF()
             position.setX(self.bodyBoundingRect().width() - (newOutput.boundingRect().width() / 2 + self._borderWidth / 2))
-            position.setY(sum([self._inputs[key].boundingRect().height() for key in self._inputs]) + self._borderWidth / 2 + self._bodyMarginBottom + self.bodyBoundingRect().y())
+            position.setY(sum([self._outputs[key].boundingRect().height() for key in self._outputs]) + self._borderWidth / 2 + self._bodyMarginBottom + self.bodyBoundingRect().y())
             newOutput.setPos(position)
 
-            self._outputs['return'] = newOutput 
+            self._outputs[outputDefinitionKey] = newOutput 
 
             self.recalculateBodySize()
 
@@ -324,7 +448,7 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
     def serialize(self) -> object:
         data = {
             'typeIdentifier': self.typeIdentifier(),
-            'uniqueIdentifier': self.uniqueIdentifier(),
+            'UUID': self.uniqueIdentifier(),
             'position': [self.scenePos().x(), self.scenePos().y()],
             'inputs': { i:self._inputs[i].serialize() for i in self._inputs }
         }
@@ -333,7 +457,7 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
 
     @staticmethod
     def deserialize(nodeGraph: "KSNodeGraph", data: object) -> KSNodeInput:
-        print(f" - {data}")
+        # print(f" - {data}")
 
         nodeType = nodeGraph.getNodeTypeFromIdentifier(data['typeIdentifier'])
         if (nodeType != None and isinstance(nodeType, KSNodeItem)):
@@ -341,24 +465,26 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
             return
         
         node = nodeType()
-
-        node._uniqueIdentifier = data['uniqueIdentifier']
-        
+        node._uniqueIdentifier = data['UUID']
         node.setPos(data['position'][0], data['position'][1])
 
-        for inputKey in data['inputs']:
-            if (inputKey in node._inputs):
-                inputData = data['inputs'][inputKey]
-                node._inputs[inputKey].deserialize(inputData)
-
         return node
+
+    def deserializeInputs(self, nodeGraph: "KSNodeGraph", data: object) -> None:
+        for inputKey in data['inputs']:
+            if (inputKey in self._inputs):
+                inputData = data['inputs'][inputKey]
+                self._inputs[inputKey].deserialize(nodeGraph, inputData)
 
     @classmethod
     def typeIdentifier(cls) -> str:
         return cls.__name__
     
-    def uniqueIdentifier(self) -> int:
-        return self._uniqueIdentifier if self._uniqueIdentifier != None else uuid.uuid4().int
+    def uniqueIdentifier(self) -> str:
+        if (self._uniqueIdentifier == None):
+            self._uniqueIdentifier =  ("NODE_" + str(uuid.uuid4().int))
+
+        return self._uniqueIdentifier
     # endregion
 
     @property
@@ -413,6 +539,10 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
         scene = self.scene()
         scene.removeItem(self)
 
+    def reload(self):
+        print("Reload", self.__class__.__name__)
+        importlib.reload(sys.modules[self.__class__.__name__])
+
     def contextMenuEvent(self, event: QtWidgets.QGraphicsSceneContextMenuEvent) -> None:
         self._contextMenu.exec_(event.screenPos())
 
@@ -466,6 +596,16 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
         self.showAddNodeMenuAction.triggered.connect(self.toggleAddNodeMenu)
         self.addAction(self.showAddNodeMenuAction)
 
+        self.reloadGraphAction = QtWidgets.QAction("Reload", self)
+        self.reloadGraphAction.setShortcut(QtGui.QKeySequence(QtCore.Qt.Key_F5))
+        self.reloadGraphAction.triggered.connect(self.reloadGraph)
+        self.addAction(self.reloadGraphAction)
+
+        self.newFileAction = QtWidgets.QAction("New File", self)
+        self.newFileAction.setShortcut(QtGui.QKeySequence('Ctrl+N'))
+        self.newFileAction.triggered.connect(self.newFile)
+        self.addAction(self.newFileAction)
+
         self.saveFileAction = QtWidgets.QAction("Save", self)
         self.saveFileAction.setShortcut(QtGui.QKeySequence('Ctrl+S'))
         self.saveFileAction.triggered.connect(self.saveFile)
@@ -484,8 +624,12 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
         self._contextMenu = QtWidgets.QMenu()
         self._contextMenu.setMinimumWidth(200)
         self._contextMenu.setStyleSheet(STYLE_QMENU)
-        self._contextMenu.addAction(self.frameSelectedAction)
         self._contextMenu.addAction(self.showAddNodeMenuAction)
+        self._contextMenu.addSeparator()
+        self._contextMenu.addAction(self.reloadGraphAction)
+        self._contextMenu.addAction(self.frameSelectedAction)
+        self._contextMenu.addSeparator()
+        self._contextMenu.addAction(self.newFileAction)
         self._contextMenu.addAction(self.saveFileAction)
         self._contextMenu.addAction(self.saveFileAsAction)
         self._contextMenu.addAction(self.openFileAction)
@@ -518,6 +662,9 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
         self.show()
 
     # region Serialization and deserialization
+    def newFile(self):
+        self.removeAllNodes()
+
     def saveFile(self):
         if (self._activeFilepath != None):
             with open(self._activeFilepath, "w") as filepath:
@@ -556,13 +703,15 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
             print(f"Deserializing {len(data['items'])} items:")
                 
             # Add items
-            for item in data['items']:
-                node = KSNodeItem.deserialize(self, item)
+            deserializedNodes = []
+            for itemData in data['items']:
+                node = KSNodeItem.deserialize(self, itemData)
+                deserializedNodes.append([node, itemData])
                 self.addNode(node)
 
             # Add connections
-            for item in data['items']:
-                pass
+            for nodeData in deserializedNodes:
+                nodeData[0].deserializeInputs(self, nodeData[1])
     # endregion
 
     # region Rubberband
@@ -618,6 +767,9 @@ class KSNodeGraph(QtWidgets.QGraphicsView):
     # endregion
 
     # region Node related
+    def reloadGraph(self) -> None:
+        print("Reloading")
+
     def addNode(self, node: KSNodeItem) -> None:
         if (node.__class__.__name__ not in self._nodeTypes):
             print(f"ERROR: Failed to find node type with identifier: {node.__class__.__name__} in the node dictionary.")
