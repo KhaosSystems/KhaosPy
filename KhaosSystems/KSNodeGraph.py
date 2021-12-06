@@ -389,6 +389,12 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
 
             self.recalculateBodySize()
 
+    def getInput(self, inputKey: str) -> typing.Any:
+        return self._inputs[inputKey].data()
+
+    def setOutput(self, outputKey: str, data: typing.Any) -> None:
+        self._outputs[outputKey].setData(data)
+
     def executeImplicit(self) -> None:
         executeAnnotations: dict = self.execute.__annotations__
         if ('return' not in executeAnnotations):
