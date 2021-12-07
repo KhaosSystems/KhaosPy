@@ -309,7 +309,7 @@ class KSNodeOutput(QtWidgets.QGraphicsItem):
         return self._dataProvider
 
     def data(self) -> typing.Any:
-        self._dataProvider.executeImplicit()
+        # self._dataProvider.executeImplicit()
         return self._dataCache
 
     def boundingRect(self) -> QtCore.QRectF:
