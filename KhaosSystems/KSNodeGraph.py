@@ -386,7 +386,7 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
         self._textPen.setStyle(QtCore.Qt.SolidLine)
         self._textPen.setColor(KSStyleingData.COLOR_NODE_TEXT.toQColor())
 
-        self._nodeTextFont = QtGui.QFont("Arial", 24, QtGui.QFont.Bold)
+        self._nodeTextFont = QtGui.QFont("Hack", 24, QtGui.QFont.Normal)
 
         self._contextMenu.addAction("Execute", self.executeImplicit)
 
