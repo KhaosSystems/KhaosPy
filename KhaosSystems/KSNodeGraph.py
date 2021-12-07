@@ -154,6 +154,9 @@ class KSNodeInput(QtWidgets.QGraphicsItem):
     _borderWidth: int = None
     _diameter: int = None
 
+    _textPen: QtGui.QPen = None
+    _nodeTextFont: QtGui.QFont = None
+
     def __init__(self, parent: "KSNodeItem", datatype: type) -> None:
         super().__init__(parent=parent)
         self._datatype = datatype
@@ -170,12 +173,18 @@ class KSNodeInput(QtWidgets.QGraphicsItem):
         self._pen.setWidth(self._borderWidth)
         self._pen.setColor(KSStyleingData.COLOR_NODE_BORDER.toQColor())
 
+        self._textPen = QtGui.QPen()
+        self._textPen.setStyle(QtCore.Qt.SolidLine)
+        self._textPen.setColor(KSStyleingData.COLOR_NODE_TEXT.toQColor())
+
+        self._nodeTextFont = QtGui.QFont("Hack", 14, QtGui.QFont.Normal)
+
         if (self._datatype == str):
             self._manualInput = KSGraphicsStringInput("L_Joint_jnt", self)
-            self._manualInput.setPos(15, 0)
+            self._manualInput.setPos(34 + 150, 0)
         elif(self._datatype == bool):
             self._manualInput = KSGraphicsBoolInput(self)
-            self._manualInput.setPos(15, 0)
+            self._manualInput.setPos(34 + 150, 0)
 
     def isUsingManualInput(self) -> bool:
         return self._connection == None
@@ -246,6 +255,12 @@ class KSNodeInput(QtWidgets.QGraphicsItem):
         painter.setBrush(self._brush)
         painter.setPen(self._pen)
         painter.drawEllipse(self._borderWidth/2, self._borderWidth/2, self._diameter-self._borderWidth, self._diameter-self._borderWidth)
+
+        painter.setPen(self._textPen)
+        painter.setFont(self._nodeTextFont)
+        textRect = QtCore.QRectF(QtCore.QPoint(34, 0), QtCore.QSizeF(150, 32))
+        #painter.fillRect(textRect, QtGui.QColor(0, 0, 255, 255))
+        painter.drawText(textRect, QtCore.Qt.AlignVCenter, "Joint Name")
 
 class KSNodeOutput(QtWidgets.QGraphicsItem):
     _dataProvider: "KSNodeItem" = None
