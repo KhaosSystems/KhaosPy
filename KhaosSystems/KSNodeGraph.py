@@ -32,6 +32,10 @@ class KSStyleingData(object):
     COLOR_DATATYPE_MATRIX: KSColor = KSColor(255, 170, 0)
 
     SCALAR_NODE_BORDER_SIZE = 4
+    SCALAR_NODE_BORDER_RADIUS = 16
+    SCALAR_NODE_PARAMETER_SPACEING = 10
+    SCALAR_NODE_PARAMETER_DIAMETER = 30
+
 
 STYLE_QMENU = '''
 QMenu {
@@ -147,15 +151,15 @@ class KSNodeInput(QtWidgets.QGraphicsItem):
     _brush: QtGui.QBrush = None
     _pen: QtGui.QPen = None
 
-    _borderWidth: int = 0
-    _radius: int = 0
+    _borderWidth: int = None
+    _diameter: int = None
 
     def __init__(self, parent: "KSNodeItem", datatype: type) -> None:
         super().__init__(parent=parent)
         self._datatype = datatype
 
         self._borderWidth = KSStyleingData.SCALAR_NODE_BORDER_SIZE
-        self._radius = 32
+        self._diameter = KSStyleingData.SCALAR_NODE_PARAMETER_DIAMETER
 
         self._brush = QtGui.QBrush()
         self._brush.setStyle(QtCore.Qt.SolidPattern)
@@ -235,13 +239,13 @@ class KSNodeInput(QtWidgets.QGraphicsItem):
             self.connect(connection)
 
     def boundingRect(self) -> QtCore.QRectF:
-        return QtCore.QRectF(0, 0, self._radius, self._radius)
+        return QtCore.QRectF(0, 0, self._diameter, self._diameter)
 
     def paint(self, painter: QtGui.QPainter, option: QtWidgets.QStyleOptionGraphicsItem, widget: typing.Optional[QtWidgets.QWidget] = ...) -> None:
         #painter.fillRect(self.boundingRect(), QtGui.QColor(0, 0, 255, 255))
         painter.setBrush(self._brush)
         painter.setPen(self._pen)
-        painter.drawEllipse(self._borderWidth/2, self._borderWidth/2, self._radius-self._borderWidth, self._radius-self._borderWidth)
+        painter.drawEllipse(self._borderWidth/2, self._borderWidth/2, self._diameter-self._borderWidth, self._diameter-self._borderWidth)
 
 class KSNodeOutput(QtWidgets.QGraphicsItem):
     _dataProvider: "KSNodeItem" = None
@@ -252,8 +256,8 @@ class KSNodeOutput(QtWidgets.QGraphicsItem):
     _brush: QtGui.QBrush = None
     _pen: QtGui.QPen = None
 
-    _borderWidth: int = 0
-    _radius: int = 0
+    _borderWidth: int = None
+    _diameter: int = None
 
     def __init__(self, parent: "KSNodeItem", datatype: type) -> None:
         super().__init__(parent=parent)
@@ -262,7 +266,7 @@ class KSNodeOutput(QtWidgets.QGraphicsItem):
         self._datatype = datatype
 
         self._borderWidth = KSStyleingData.SCALAR_NODE_BORDER_SIZE
-        self._radius = 32
+        self._diameter = KSStyleingData.SCALAR_NODE_PARAMETER_DIAMETER
 
         self._brush = QtGui.QBrush()
         self._brush.setStyle(QtCore.Qt.SolidPattern)
@@ -294,13 +298,13 @@ class KSNodeOutput(QtWidgets.QGraphicsItem):
         return self._dataCache
 
     def boundingRect(self) -> QtCore.QRectF:
-        return QtCore.QRectF(0, 0, self._radius, self._radius)
+        return QtCore.QRectF(0, 0, self._diameter, self._diameter)
 
     def paint(self, painter: QtGui.QPainter, option: QtWidgets.QStyleOptionGraphicsItem, widget: typing.Optional[QtWidgets.QWidget] = ...) -> None:
         #painter.fillRect(self.boundingRect(), QtGui.QColor(0, 0, 255, 255))
         painter.setBrush(self._brush)
         painter.setPen(self._pen)
-        painter.drawEllipse(self._borderWidth/2, self._borderWidth/2, self._radius-self._borderWidth, self._radius-self._borderWidth)
+        painter.drawEllipse(self._borderWidth/2, self._borderWidth/2, self._diameter-self._borderWidth, self._diameter-self._borderWidth)
 
 class KSNodeItem(QtWidgets.QGraphicsItem):
     _title: str = "Node Title"
@@ -321,7 +325,10 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
     _separatorPen: QtGui.QPen = None
     _separatorWidth: int = None 
 
+    _parameterSpaceing: int = None
+
     _borderWidth: float = None
+    _borderRadius: int = None
     _bodyMarginTop: float = None
     _bodyMarginBottom: float = None
     _headerSize: QtCore.QRectF = None
@@ -340,10 +347,13 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
         self.setFlag(QtWidgets.QGraphicsItem.ItemIsSelectable)
 
         self._borderWidth = KSStyleingData.SCALAR_NODE_BORDER_SIZE
+        self._borderRadius = KSStyleingData.SCALAR_NODE_BORDER_RADIUS
         self._bodyMarginTop = 40
         self._bodyMarginBottom = 40
         self._headerSize = QtCore.QSizeF(400, 66)
         self._bodySize = QtCore.QSizeF(400, self._borderWidth + self._bodyMarginTop + self._bodyMarginBottom)
+
+        self._parameterSpaceing = KSStyleingData.SCALAR_NODE_PARAMETER_SPACEING
 
         self._contextMenu = QtWidgets.QMenu()
         self._contextMenu.setMinimumWidth(400)
@@ -392,7 +402,7 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
 
             position = QtCore.QPointF()
             position.setX(-newInput.boundingRect().width() / 2 + self._borderWidth / 2)
-            position.setY(sum([self._inputs[key].boundingRect().height() for key in self._inputs]) + self._borderWidth / 2 + self._bodyMarginBottom + self.bodyBoundingRect().y())
+            position.setY(sum([self._inputs[key].boundingRect().height() + self._parameterSpaceing for key in self._inputs]) + self._borderWidth / 2 + self._bodyMarginBottom + self.bodyBoundingRect().y())
             newInput.setPos(position)
                 
             self._inputs[inputDefinitionKey] = newInput 
@@ -408,7 +418,7 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
 
             position = QtCore.QPointF()
             position.setX(self.bodyBoundingRect().width() - (newOutput.boundingRect().width() / 2 + self._borderWidth / 2))
-            position.setY(sum([self._outputs[key].boundingRect().height() for key in self._outputs]) + self._borderWidth / 2 + self._bodyMarginBottom + self.bodyBoundingRect().y())
+            position.setY(sum([self._outputs[key].boundingRect().height() + self._parameterSpaceing for key in self._outputs]) + self._borderWidth / 2 + self._bodyMarginBottom + self.bodyBoundingRect().y())
             newOutput.setPos(position)
 
             self._outputs[outputDefinitionKey] = newOutput 
@@ -502,8 +512,8 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
         newWidth = self._bodySize.width()
         newHeight = self._borderWidth + self._bodyMarginTop + self._bodyMarginBottom
 
-        inputHeight = sum([self._inputs[key].boundingRect().height() for key in self._inputs])
-        outputHeight = sum([self._outputs[key].boundingRect().height() for key in self._outputs])
+        inputHeight = sum([self._inputs[key].boundingRect().height() + self._parameterSpaceing for key in self._inputs]) - self._parameterSpaceing
+        outputHeight = sum([self._outputs[key].boundingRect().height() + self._parameterSpaceing for key in self._outputs]) - self._parameterSpaceing 
         newHeight += max(inputHeight, outputHeight)
 
         self._bodySize = QtCore.QSizeF(newWidth, newHeight)
@@ -528,14 +538,12 @@ class KSNodeItem(QtWidgets.QGraphicsItem):
         painter.setBrush(self._brush)
         painter.setPen(self.pen)
         margin = QtCore.QMarginsF(self._borderWidth / 2, self._borderWidth / 2, self._borderWidth / 2, self._borderWidth / 2)
-        painter.drawRoundedRect(self.bodyBoundingRect().marginsRemoved(margin), 20, 20)
+        painter.drawRoundedRect(self.bodyBoundingRect().marginsRemoved(margin), self._borderRadius, self._borderRadius)
 
         painter.setPen(self._separatorPen)
-        painter.drawLine(self._borderWidth + self._separatorWidth/2, self.bodyBoundingRect().top()+26, self.bodyBoundingRect().width()- (self._borderWidth + self._separatorWidth/2), self.bodyBoundingRect().top()+26)
-        painter.drawLine(self._borderWidth + self._separatorWidth/2, self.bodyBoundingRect().bottom()-26, self.bodyBoundingRect().width()- (self._borderWidth + self._separatorWidth/2), self.bodyBoundingRect().bottom()-26)
-
-        #painter.drawLine(self._borderWidth, self.bodyBoundingRect().top()+13, self.bodyBoundingRect().width()-(self._borderWidth  + 0.5), self.bodyBoundingRect().top()+13)
-        #painter.drawLine(self._borderWidth/2 + 1, self.bodyBoundingRect().bottom()-13, self.bodyBoundingRect().width()-(self._borderWidth + 0.5), self.bodyBoundingRect().bottom()-13)
+        painter.drawLine(self._borderWidth + self._separatorWidth/2, self.bodyBoundingRect().top()+26, self.bodyBoundingRect().width()-(self._borderWidth + self._separatorWidth/2), self.bodyBoundingRect().top()+26)
+        painter.drawLine(self._borderWidth + self._separatorWidth/2, self.bodyBoundingRect().bottom()-26, self.bodyBoundingRect().width()-(self._borderWidth + self._separatorWidth/2), self.bodyBoundingRect().bottom()-26)
+        painter.drawLine(275, self.bodyBoundingRect().top() + 26 + self._separatorWidth, 275, self.bodyBoundingRect().bottom() - (26 + self._separatorWidth))
 
         # Node label.
         painter.setPen(self._textPen)
