@@ -92,39 +92,48 @@ class KSGraphicsBoolInput(QtWidgets.QGraphicsItem):
         return self._data
 
 class KSNodeConnectionPath(QtWidgets.QGraphicsPathItem):
-    originPoint: QtCore.QPointF = None
-    targetPoint: QtCore.QPointF = None
+    _originPoint: QtCore.QPointF = None
+    _targetPoint: QtCore.QPointF = None
+    _path: QtGui.QPainterPath = None
+    _backgroundPen: QtGui.QPen = None
+    _infillPen: QtGui.QPen = None
     
     def __init__(self, originPoint: QtCore.QPointF, targetPoint: QtCore.QPointF) -> None:
         super().__init__()
 
+        self._backgroundPen = QtGui.QPen(KSStyleingData.COLOR_NODE_BORDER.toQColor())
+        self._backgroundPen.setWidth(6)
+        self.setPen(self._backgroundPen)
+
+        self._infillPen = QtGui.QPen(KSStyleingData.COLOR_DATATYPE_STRING.toQColor())
+        self._infillPen.setWidth(2)
+
         self.updatePath(originPoint, targetPoint)
 
     def paint(self, painter: QtGui.QPainter, option: QtWidgets.QStyleOptionGraphicsItem, widget: typing.Optional[QtWidgets.QWidget] = ...) -> None:
-        self.updatePath(self.originPoint, self.targetPoint)
-        return super().paint(painter, option, widget=widget)
+        # self.updatePath(self._originPoint, self._targetPoint)
+        painter.setPen(self._backgroundPen)
+        painter.drawPath(self._path)
+        painter.setPen(self._infillPen)
+        painter.drawPath(self._path)
 
     def updatePath(self, originPoint: QtCore.QPointF, targetPoint: QtCore.QPointF) -> None:
-        self.originPoint = originPoint
-        self.targetPoint = targetPoint
-
-        self._pen = QtGui.QPen(QtCore.Qt.red)
-        self._pen.setWidth(4)
-        self.setPen(self._pen)
-
-        self.source_point = self.originPoint
-        self.target_point = self.targetPoint
+        self._originPoint = originPoint
+        self._targetPoint = targetPoint
 
         path = QtGui.QPainterPath()
-        path.moveTo(self.source_point)
-        dx = (self.target_point.x() - self.source_point.x()) * 0.5
-        dy = self.target_point.y() - self.source_point.y()
-        ctrl1 = QtCore.QPointF(self.source_point.x() + dx, self.source_point.y() + dy * 0)
-        ctrl2 = QtCore.QPointF(self.source_point.x() + dx, self.source_point.y() + dy * 1)
-        path.cubicTo(ctrl1, ctrl2, self.target_point)
+        path.moveTo(self._originPoint)
+        dx = (self._targetPoint.x() - self._originPoint.x()) * 0.5
+        dy = self._targetPoint.y() - self._originPoint.y()
+        ctrl1 = QtCore.QPointF(self._originPoint.x() + dx, self._originPoint.y() + dy * 0)
+        ctrl2 = QtCore.QPointF(self._originPoint.x() + dx, self._originPoint.y() + dy * 1)
+        path.cubicTo(ctrl1, ctrl2, self._targetPoint)
+        self._path = path
 
+        # For some reason, removeing this breaks everything.
+        # FIXME: Figure out why, here are the docs; good luck... https://code.woboq.org/qt5/qtbase/src/widgets/graphicsview/qgraphicsitem.cpp.html#_ZN17QGraphicsPathItem5paintEP8QPainterPK24QStyleOptionGraphicsItemP7QWidget
         self.setPath(path)
-    
+
 class KSNodeInput(QtWidgets.QGraphicsItem):
     _datatype: type = None
     _connection: "KSNodeOutput" = None
@@ -249,12 +258,12 @@ class KSNodeOutput(QtWidgets.QGraphicsItem):
 
         self._brush = QtGui.QBrush()
         self._brush.setStyle(QtCore.Qt.SolidPattern)
-        self._brush.setColor(QtGui.QColor(70, 70, 70, 255))
+        self._brush.setColor(KSStyleingData.COLOR_DATATYPE_STRING.toQColor())
 
         self._pen = QtGui.QPen()
         self._pen.setStyle(QtCore.Qt.SolidLine)
         self._pen.setWidth(self._borderWidth)
-        self._pen.setColor(QtGui.QColor(50, 50, 50, 255))
+        self._pen.setColor(KSStyleingData.COLOR_NODE_BORDER.toQColor())
 
     def setData(self, data: typing.Any) -> None:
         self._dataCache = data
@@ -280,8 +289,6 @@ class KSNodeOutput(QtWidgets.QGraphicsItem):
         return QtCore.QRectF(0, 0, 16, 22)
 
     def paint(self, painter: QtGui.QPainter, option: QtWidgets.QStyleOptionGraphicsItem, widget: typing.Optional[QtWidgets.QWidget] = ...) -> None:
-        painter.fillRect(self.boundingRect(), QtCore.Qt.red)
-
         painter.setBrush(self._brush)
         painter.setPen(self._pen)
         painter.drawEllipse(1, 4, 14, 14)
